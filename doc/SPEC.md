@@ -51,7 +51,7 @@ Este documento cobre exclusivamente o **MVP (Fase 1)**. Funcionalidades de fases
 |:---|:---|:---|
 | **Linguagem** | Java | 25 |
 | **Framework** | Spring Boot | 4.1.x |
-| **Build** | Maven | — |
+| **Build** | Gradle | — |
 | **Banco de dados** | PostgreSQL | 17+ |
 | **Migrações** | Flyway | — |
 | **ORM** | Spring Data JPA (Hibernate 6) | — |
@@ -199,12 +199,12 @@ Controller → Service → Repository
 
 ## 5. Épicos e Cards do MVP
 
-### Épico 1: Fundação, Autenticação e Modelagem ✅ CONCLUÍDO
+### Épico 1: Fundação, Autenticação e Modelagem
 
 | Card | Descrição | Status |
 |:---|:---|:---:|
-| CARD-01 | Modelagem de dados relacional (6 entidades, Flyway V1–V6) | ✅ |
-| CARD-02 | Sistema de autenticação JWT + RBAC | ✅ |
+| CARD-01 | Modelagem de dados relacional (6 entidades, Flyway V1–V6) | A Fazer |
+| CARD-02 | Sistema de autenticação JWT + RBAC | A Fazer |
 
 ---
 
@@ -385,16 +385,16 @@ erDiagram
     }
 ```
 
-### 6.2 Migrações Flyway (implementadas)
+### 6.2 Migrações Flyway (planejadas)
 
 | Migração | Tabela | Status |
 |:---|:---|:---:|
-| `V1__create_table_usuario.sql` | `usuario` | ✅ |
-| `V2__create_table_evento.sql` | `evento` | ✅ |
-| `V3__create_table_convidado.sql` | `convidado` | ✅ |
-| `V4__create_table_convite.sql` | `convite` | ✅ |
-| `V5__create_table_checkin.sql` | `checkin` | ✅ |
-| `V6__create_table_autorizacao_manual.sql` | `autorizacao_manual` | ✅ |
+| `V1__create_table_usuario.sql` | `usuario` | A Fazer |
+| `V2__create_table_evento.sql` | `evento` | A Fazer |
+| `V3__create_table_convidado.sql` | `convidado` | A Fazer |
+| `V4__create_table_convite.sql` | `convite` | A Fazer |
+| `V5__create_table_checkin.sql` | `checkin` | A Fazer |
+| `V6__create_table_autorizacao_manual.sql` | `autorizacao_manual` | A Fazer |
 
 ### 6.3 Enums
 
@@ -415,13 +415,13 @@ erDiagram
 
 Os contratos detalhados (request/response JSON) serão especificados conforme cada épico for implementado. Abaixo, a visão geral dos endpoints planejados.
 
-### 7.1 Autenticação ✅
+### 7.1 Autenticação
 
 | Método | Endpoint | Descrição | Acesso |
 |:---|:---|:---|:---|
 | `POST` | `/auth/login` | Autenticar e obter token JWT | Público |
 
-### 7.2 Usuários ✅
+### 7.2 Usuários
 
 | Método | Endpoint | Descrição | Acesso |
 |:---|:---|:---|:---|
@@ -706,7 +706,7 @@ O registro de check-in deve ser protegido contra condições de corrida (dois co
 | Decisão | Justificativa |
 |:---|:---|
 | Código alfanumérico em vez de QR Code real | Simplifica o MVP; QR Code é apenas representação visual do código |
-| Envio de e-mail assíncrono via RabbitMQ | Desacopla geração do convite do envio; dependência já presente no `pom.xml` |
+| Envio de e-mail assíncrono via RabbitMQ | Desacopla geração do convite do envio; dependência já presente no `build.gradle.kts` |
 | E-mail com template HTML | Inclui nome do convidado, evento, data/hora, local e código de acesso |
 | Dashboard com polling (GET) | Suficiente para MVP; WebSocket planejado para Fase 2 |
 | Sem importação CSV/Excel | Cadastro manual individual cobre o MVP |
@@ -718,7 +718,7 @@ O registro de check-in deve ser protegido contra condições de corrida (dois co
 
 ## 13. Critérios de Aceite do MVP
 
-### 13.1 Autenticação (Épico 1) ✅
+### 13.1 Autenticação (Épico 1)
 - **Dado** que um usuário admin existe, **quando** ele faz `POST /auth/login` com credenciais válidas, **então** o sistema retorna um token JWT válido.
 - **Dado** que um token JWT válido existe, **quando** uma requisição é feita com `Authorization: Bearer <token>`, **então** o sistema autentica o usuário.
 - **Dado** que um admin está autenticado, **quando** ele faz `POST /usuarios` com dados válidos, **então** o sistema cria o usuário e retorna 201.
