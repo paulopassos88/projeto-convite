@@ -204,7 +204,7 @@ Controller → Service → Repository
 | Card | Descrição | Status |
 |:---|:---|:---:|
 | CARD-01 | Modelagem de dados relacional (6 entidades, Flyway V1–V6) | ✅ |
-| CARD-02 | Sistema de autenticação JWT + RBAC | A Fazer |
+| CARD-02 | Sistema de autenticação JWT + RBAC | ✅ |
 
 ---
 

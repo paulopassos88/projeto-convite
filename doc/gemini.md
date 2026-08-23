@@ -20,6 +20,10 @@
    - Só implemente testes se o usuário solicitar explicitamente.
 6. **Entregáveis:** 
    - Sempre inclua imports, explique anotações novas e, ao sugerir migrações de banco, inclua scripts Flyway/Liquibase.
+7. **Atualização Contínua de Documentação:**
+   - Toda alteração relevante para o contexto do projeto deve gerar uma atualização nos arquivos de especificação (dentro do diretório `doc/spec/`) documentando a etapa.
+8. **Atualização Contínua das Coleções HTTP:**
+   - Toda alteração ou criação de rotas HTTP na API deve ser refletida atualizando o arquivo padrão `api-collection.json` (formato Postman v2.1) na pasta `Gestor de Eventos e Convites`, garantindo compatibilidade com qualquer API Client (Postman, Insomnia, Bruno, etc).
 
 ---
 
