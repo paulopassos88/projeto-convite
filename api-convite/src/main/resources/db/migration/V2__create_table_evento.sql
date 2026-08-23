@@ -1,5 +1,5 @@
 CREATE TABLE evento (
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organizador_id UUID NOT NULL,
     nome VARCHAR(255) NOT NULL,
     descricao TEXT,

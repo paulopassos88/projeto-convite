@@ -1,5 +1,5 @@
 CREATE TABLE checkin (
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     convite_id UUID NOT NULL,
     evento_id UUID NOT NULL,
     controlador_id UUID NOT NULL,

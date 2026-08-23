@@ -1,5 +1,5 @@
 CREATE TABLE convite (
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     convidado_id UUID NOT NULL,
     evento_id UUID NOT NULL,
     codigo VARCHAR(255) NOT NULL UNIQUE,

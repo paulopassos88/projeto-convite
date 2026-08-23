@@ -1,5 +1,5 @@
 CREATE TABLE autorizacao_manual (
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     evento_id UUID NOT NULL,
     convite_id UUID,
     organizador_id UUID NOT NULL,
