@@ -203,7 +203,7 @@ Controller → Service → Repository
 
 | Card | Descrição | Status |
 |:---|:---|:---:|
-| CARD-01 | Modelagem de dados relacional (6 entidades, Flyway V1–V6) | A Fazer |
+| CARD-01 | Modelagem de dados relacional (6 entidades, Flyway V1–V6) | ✅ |
 | CARD-02 | Sistema de autenticação JWT + RBAC | A Fazer |
 
 ---
@@ -389,12 +389,12 @@ erDiagram
 
 | Migração | Tabela | Status |
 |:---|:---|:---:|
-| `V1__create_table_usuario.sql` | `usuario` | A Fazer |
-| `V2__create_table_evento.sql` | `evento` | A Fazer |
-| `V3__create_table_convidado.sql` | `convidado` | A Fazer |
-| `V4__create_table_convite.sql` | `convite` | A Fazer |
-| `V5__create_table_checkin.sql` | `checkin` | A Fazer |
-| `V6__create_table_autorizacao_manual.sql` | `autorizacao_manual` | A Fazer |
+| `V1__create_table_usuario.sql` | `usuario` | ✅ |
+| `V2__create_table_evento.sql` | `evento` | ✅ |
+| `V3__create_table_convidado.sql` | `convidado` | ✅ |
+| `V4__create_table_convite.sql` | `convite` | ✅ |
+| `V5__create_table_checkin.sql` | `checkin` | ✅ |
+| `V6__create_table_autorizacao_manual.sql` | `autorizacao_manual` | ✅ |
 
 ### 6.3 Enums
 
