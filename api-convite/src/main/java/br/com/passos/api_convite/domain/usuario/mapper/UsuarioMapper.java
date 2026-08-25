@@ -1,5 +1,6 @@
 package br.com.passos.api_convite.domain.usuario.mapper;
 
+import br.com.passos.api_convite.domain.usuario.dto.CadastroUsuarioDTO;
 import br.com.passos.api_convite.domain.usuario.dto.UsuarioResponseDTO;
 import br.com.passos.api_convite.domain.usuario.model.Usuario;
 import org.mapstruct.Mapper;
@@ -9,4 +10,6 @@ import org.mapstruct.MappingConstants;
 public interface UsuarioMapper {
 
     UsuarioResponseDTO toResponse(Usuario usuario);
+    
+    Usuario toEntity(CadastroUsuarioDTO dto);
 }

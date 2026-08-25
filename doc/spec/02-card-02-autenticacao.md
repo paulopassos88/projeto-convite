@@ -27,5 +27,11 @@ Criamos o pilar da segurança da aplicação:
 - Criada a rota `POST /auth/login` gerida pelo `AutenticacaoController`.
 - Criado o `AutenticacaoService` que varre o DB (implementando `UserDetailsService`) injetando as rotinas no `AuthenticationManager`.
 
+### Complemento: Cadastro e Exceções
+- Criado tratamento de erros global em `infra/exception/GlobalExceptionHandler.java` capturando erros de validação (400), erros de negócio (400) e conflitos (409) através do objeto padronizado `ErrorResponse.java` (Swagger compatível).
+- Adicionada a dependência do SpringDoc OpenAPI.
+- Implementado o serviço `CadastroUsuarioService` com MapStruct para converter o DTO e fazer o Hash da senha antes de persistir.
+- Protegido o endpoint de criação (`POST /usuarios`) com `@PreAuthorize("hasRole('ADMIN')")`, garantindo o isolamento RBAC.
+
 ## Próximos Passos
 O usuário Master (Role ADMIN) será criado direto na base (PostgreSQL). A partir da fundação criada hoje, basta usarmos a anotação `@PreAuthorize` nos próximos cards para garantir o isolamento correto de cada perfil (Controlador vs Organizador).

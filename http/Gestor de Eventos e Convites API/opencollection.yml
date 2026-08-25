@@ -1,0 +1,14 @@
+opencollection: 1.0.0
+
+info:
+  name: Gestor de Eventos e Convites API
+
+docs:
+  content: Coleção de rotas HTTP para a API do projeto Gestor de Eventos e Convites.
+  type: text/markdown
+bundled: false
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git
