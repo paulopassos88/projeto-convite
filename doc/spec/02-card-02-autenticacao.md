@@ -28,10 +28,18 @@ Criamos o pilar da segurança da aplicação:
 - Criado o `AutenticacaoService` que varre o DB (implementando `UserDetailsService`) injetando as rotinas no `AuthenticationManager`.
 
 ### Complemento: Cadastro e Exceções
-- Criado tratamento de erros global em `infra/exception/GlobalExceptionHandler.java` capturando erros de validação (400), erros de negócio (400) e conflitos (409) através do objeto padronizado `ErrorResponse.java` (Swagger compatível).
+- Criado tratamento de erros global em `infra/exception/GlobalExceptionHandler.java` capturando erros de validação (400), erros de negócio (400) e conflitos (409) através do objeto padronizado `ErrorResponse.java` (Swagger compatível). Corrigido comportamento do Spring Security convertendo as respostas de `BadCredentialsException` e `AccessDeniedException` para HTTP `403 Forbidden`.
 - Adicionada a dependência do SpringDoc OpenAPI.
 - Implementado o serviço `CadastroUsuarioService` com MapStruct para converter o DTO e fazer o Hash da senha antes de persistir.
 - Protegido o endpoint de criação (`POST /usuarios`) com `@PreAuthorize("hasRole('ADMIN')")`, garantindo o isolamento RBAC.
+
+### Testes de Integração (Testcontainers)
+- Implementada uma suíte de testes de caminho feliz (`Happy Path`) para as rotas críticas de segurança.
+- **Ecossistema:** Configurado o uso do `spring-boot-testcontainers` para criar instâncias descartáveis e reais do PostgreSQL 16 durante os testes (dispensando mocks de banco de dados).
+- **Classe Base (`AbstractIntegrationTest`):** Usada a anotação moderna `@ServiceConnection` associada a um container estático singleton, garantindo inicialização limpa em um único *pool* compartilhado por toda a execução de teste (evitando conexões abandonadas de HikariCP).
+- **Testes Escritos:**
+  - `AutenticacaoControllerTest`: Verifica geração do Token e rejeição de login inválido.
+  - `UsuarioControllerTest`: Verifica a restrição de cadastro com mock de `@WithMockUser`, confirmando a blindagem RBAC de ADMIN.
 
 ## Próximos Passos
 O usuário Master (Role ADMIN) será criado direto na base (PostgreSQL). A partir da fundação criada hoje, basta usarmos a anotação `@PreAuthorize` nos próximos cards para garantir o isolamento correto de cada perfil (Controlador vs Organizador).
