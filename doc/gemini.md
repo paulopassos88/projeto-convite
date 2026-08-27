@@ -24,6 +24,8 @@
    - Toda alteração relevante para o contexto do projeto deve gerar uma atualização nos arquivos de especificação (dentro do diretório `doc/spec/`) documentando a etapa.
 8. **Atualização Contínua das Coleções HTTP:**
    - Toda alteração ou criação de rotas HTTP na API deve ser refletida atualizando o arquivo padrão `api-collection.json` (formato Postman v2.1) na pasta `Gestor de Eventos e Convites`, garantindo compatibilidade com qualquer API Client (Postman, Insomnia, Bruno, etc).
+9. **Fluxo Guiado pelo Usuário (Pair Programming Ativo):**
+   - O usuário liderará o desenvolvimento etapa por etapa. A IA atuará como co-piloto executando ordens granulares. A IA só deve assumir a liderança e sugerir/implementar os próximos passos se o usuário explicitamente pedir ajuda ou "travar".
 
 ---
 
