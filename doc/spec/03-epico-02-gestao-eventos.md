@@ -39,3 +39,12 @@ Implementar o fluxo completo de criação, listagem e administração de Eventos
 
 ### 5. Coleção HTTP (Postman)
 - Arquivo `http/api-collection.json` na raiz, com variáveis de coleção (`baseUrl`, `token`, `eventoId`) e scripts automáticos de extração de token e id de evento.
+
+### 6. Testes de Integração (Testcontainers)
+- `EventoControllerTest`: 8 testes cobrindo todo o ciclo de vida do evento:
+  - Criação de evento com sucesso por `ORGANIZADOR` com preenchimento automático do dono via JWT.
+  - Bloqueio por validação de datas (HTTP 400).
+  - Bloqueio de acesso anônimo (HTTP 403).
+  - Listagem com isolamento de visibilidade por perfil (ADMIN vs ORGANIZADOR).
+  - Bloqueio de acesso/modificação de evento de outro organizador (HTTP 403).
+  - Atualização e cancelamento bem-sucedidos pelo próprio organizador.
