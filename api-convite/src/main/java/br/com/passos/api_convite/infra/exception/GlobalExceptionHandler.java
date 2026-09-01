@@ -1,5 +1,6 @@
 package br.com.passos.api_convite.infra.exception;
 
+import br.com.passos.api_convite.domain.evento.service.exceptions.EventoNaoEncontradoException;
 import br.com.passos.api_convite.domain.usuario.service.exceptions.BusinessException;
 import br.com.passos.api_convite.domain.usuario.service.exceptions.EmailJaCadastradoException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -79,6 +80,21 @@ public class GlobalExceptionHandler {
                 request.getRequestURI());
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler(EventoNaoEncontradoException.class)
+    public ResponseEntity<ErrorResponse> handleEventoNaoEncontrado(
+            EventoNaoEncontradoException ex,
+            HttpServletRequest request) {
+
+        ErrorResponse body = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.NOT_FOUND.value(),
+                "Evento não encontrado",
+                ex.getMessage(),
+                request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)

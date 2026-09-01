@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -22,18 +23,25 @@ public class SecurityFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        var tokenJWT = recuperarToken(request);
+        try {
+            var tokenJWT = recuperarToken(request);
 
-        if (tokenJWT != null) {
-            var subject = tokenService.getSubject(tokenJWT);
-            var usuario = repository.findByEmail(subject)
-                    .orElseThrow(() -> new RuntimeException("Usuário não encontrado do token"));
+            if (tokenJWT != null) {
+                var subject = tokenService.getSubject(tokenJWT);
+                var usuario = repository.findByEmail(subject)
+                        .orElseThrow(() -> new RuntimeException("Usuário não encontrado do token"));
 
-            var authentication = new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities());
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                var authentication = new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities());
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                MDC.put("usuarioEmail", usuario.getEmail());
+                MDC.put("usuarioId", usuario.getId().toString());
+            }
+
+            filterChain.doFilter(request, response);
+        } finally {
+            MDC.clear();
         }
-
-        filterChain.doFilter(request, response);
     }
 
     private String recuperarToken(HttpServletRequest request) {

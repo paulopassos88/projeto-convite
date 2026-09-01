@@ -27,6 +27,9 @@ class UsuarioControllerTest extends AbstractIntegrationTest {
     private ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
+    private br.com.passos.api_convite.domain.evento.repository.EventoRepository eventoRepository;
+
+    @Autowired
     private UsuarioRepository usuarioRepository;
 
     @BeforeEach
@@ -36,6 +39,7 @@ class UsuarioControllerTest extends AbstractIntegrationTest {
                 .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
                 .build();
 
+        eventoRepository.deleteAll();
         usuarioRepository.deleteAll();
     }
 

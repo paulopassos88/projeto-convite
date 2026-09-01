@@ -1,15 +1,49 @@
 {
   "info": {
     "name": "Gestor de Eventos e Convites API",
-    "description": "Coleção de rotas HTTP para a API do projeto Gestor de Eventos e Convites.",
+    "description": "Coleção de rotas HTTP pronta para uso no Postman para a API Gestor de Eventos e Convites (Spring Boot 3 + JWT + RBAC).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "eventoId",
+      "value": "",
+      "type": "string"
+    }
+  ],
   "item": [
     {
       "name": "Autenticação",
       "item": [
         {
           "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.token) {",
+                  "        pm.collectionVariables.set('token', jsonData.token);",
+                  "        console.log('✅ Token JWT salvo com sucesso na variável {{token}}');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -20,18 +54,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@teste.com\",\n  \"senha\": \"123\"\n}"
+              "raw": "{\n  \"email\": \"admin@teste.com\",\n  \"senha\": \"123456\"\n}"
             },
             "url": {
-              "raw": "http://localhost:8080/api/v1/auth/login",
-              "protocol": "http",
+              "raw": "{{baseUrl}}/auth/login",
               "host": [
-                "localhost"
+                "{{baseUrl}}"
               ],
-              "port": "8080",
               "path": [
-                "api",
-                "v1",
                 "auth",
                 "login"
               ]
@@ -62,16 +92,175 @@
               "raw": "{\n  \"nome\": \"Fulano Organizador\",\n  \"email\": \"organizador@teste.com\",\n  \"senha\": \"123456\",\n  \"perfil\": \"ORGANIZADOR\"\n}"
             },
             "url": {
-              "raw": "http://localhost:8080/api/v1/usuarios",
-              "protocol": "http",
+              "raw": "{{baseUrl}}/usuarios",
               "host": [
-                "localhost"
+                "{{baseUrl}}"
               ],
-              "port": "8080",
               "path": [
-                "api",
-                "v1",
                 "usuarios"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Eventos",
+      "item": [
+        {
+          "name": "Criar Evento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.id) {",
+                  "        pm.collectionVariables.set('eventoId', jsonData.id);",
+                  "        console.log('✅ ID do evento salvo na variável {{eventoId}}: ' + jsonData.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Casamento dos Sonhos\",\n  \"descricao\": \"Cerimônia e recepção de casamento\",\n  \"localNome\": \"Espaço Villa Real\",\n  \"endereco\": \"Av. Principal, 1000 - Centro\",\n  \"linkMaps\": \"https://maps.google.com/?q=Villa+Real\",\n  \"dataInicio\": \"2026-12-31T19:00:00\",\n  \"dataTermino\": \"2027-01-01T04:00:00\",\n  \"antecedenciaMinutos\": 60,\n  \"toleranciaAtrasoMinutos\": 30,\n  \"acompanhantesPadrao\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar Eventos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?page=0&size=10&sort=dataInicio,asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "description": "Página (0-indexed)"
+                },
+                {
+                  "key": "size",
+                  "value": "10",
+                  "description": "Quantidade de registros por página"
+                },
+                {
+                  "key": "sort",
+                  "value": "dataInicio,asc",
+                  "description": "Ordenação (campo,direção)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar Evento por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Evento",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Casamento dos Sonhos - Atualizado\",\n  \"descricao\": \"Nova descrição do evento\",\n  \"localNome\": \"Espaço Villa Real - Salão Nobre\",\n  \"endereco\": \"Av. Principal, 1000 - Centro\",\n  \"linkMaps\": \"https://maps.google.com/?q=Villa+Real\",\n  \"dataInicio\": \"2026-12-31T20:00:00\",\n  \"dataTermino\": \"2027-01-01T05:00:00\",\n  \"antecedenciaMinutos\": 45,\n  \"toleranciaAtrasoMinutos\": 20,\n  \"acompanhantesPadrao\": 2,\n  \"status\": \"ATIVO\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancelar Evento",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoId}}"
               ]
             }
           }
