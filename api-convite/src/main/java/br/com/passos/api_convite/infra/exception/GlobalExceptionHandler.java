@@ -1,5 +1,7 @@
 package br.com.passos.api_convite.infra.exception;
 
+import br.com.passos.api_convite.domain.convidado.service.exceptions.ConvidadoNaoEncontradoException;
+import br.com.passos.api_convite.domain.convidado.service.exceptions.EmailConvidadoDuplicadoException;
 import br.com.passos.api_convite.domain.evento.service.exceptions.EventoNaoEncontradoException;
 import br.com.passos.api_convite.domain.usuario.service.exceptions.BusinessException;
 import br.com.passos.api_convite.domain.usuario.service.exceptions.EmailJaCadastradoException;
@@ -95,6 +97,36 @@ public class GlobalExceptionHandler {
                 request.getRequestURI());
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(ConvidadoNaoEncontradoException.class)
+    public ResponseEntity<ErrorResponse> handleConvidadoNaoEncontrado(
+            ConvidadoNaoEncontradoException ex,
+            HttpServletRequest request) {
+
+        ErrorResponse body = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.NOT_FOUND.value(),
+                "Convidado não encontrado",
+                ex.getMessage(),
+                request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(EmailConvidadoDuplicadoException.class)
+    public ResponseEntity<ErrorResponse> handleEmailConvidadoDuplicado(
+            EmailConvidadoDuplicadoException ex,
+            HttpServletRequest request) {
+
+        ErrorResponse body = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                "Erro ao processar convidado",
+                ex.getMessage(),
+                request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
