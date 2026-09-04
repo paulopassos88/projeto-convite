@@ -24,6 +24,11 @@
       "key": "convidadoId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "conviteId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -444,6 +449,172 @@
                 "{{eventoId}}",
                 "convidados",
                 "{{convidadoId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Convites",
+      "item": [
+        {
+          "name": "Gerar Convite para Convidado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.id) {",
+                  "        pm.collectionVariables.set('conviteId', jsonData.id);",
+                  "        console.log('✅ ID do convite salvo com sucesso na variável {{conviteId}}');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoId}}/convidados/{{convidadoId}}/convite",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoId}}",
+                "convidados",
+                "{{convidadoId}}",
+                "convite"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar Convites do Evento",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoId}}/convites?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoId}}",
+                "convites"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar Convites por Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoId}}/convites?status=PENDENTE&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoId}}",
+                "convites"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDENTE"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar Convite por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoId}}/convites/{{conviteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoId}}",
+                "convites",
+                "{{conviteId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar Convite por Convidado",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoId}}/convidados/{{convidadoId}}/convite",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoId}}",
+                "convidados",
+                "{{convidadoId}}",
+                "convite"
               ]
             }
           }
