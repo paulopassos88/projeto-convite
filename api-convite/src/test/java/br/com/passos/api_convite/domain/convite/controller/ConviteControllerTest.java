@@ -7,6 +7,7 @@ import br.com.passos.api_convite.domain.convite.model.Convite;
 import br.com.passos.api_convite.domain.convite.model.StatusConvite;
 import br.com.passos.api_convite.domain.convite.model.StatusEnvio;
 import br.com.passos.api_convite.domain.convite.repository.ConviteRepository;
+import br.com.passos.api_convite.domain.convite.amqp.ConviteEmailProducer;
 import br.com.passos.api_convite.domain.evento.model.Evento;
 import br.com.passos.api_convite.domain.evento.model.StatusEvento;
 import br.com.passos.api_convite.domain.evento.repository.EventoRepository;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.context.WebApplicationContext;
 
@@ -27,6 +29,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -41,6 +45,9 @@ class ConviteControllerTest extends AbstractIntegrationTest {
 
     @Autowired
     private WebApplicationContext context;
+
+    @MockitoBean
+    private ConviteEmailProducer conviteEmailProducer;
 
     @Autowired
     private ConviteRepository conviteRepository;
@@ -279,6 +286,52 @@ class ConviteControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/eventos/" + eventoOrg1.getId() + "/convites/" + UUID.randomUUID())
                         .header("Authorization", "Bearer " + tokenOrg1))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Cenário 14: Deve enfileirar envio de e-mail do convite com sucesso (200 OK)")
+    void enviarConvite_ComSucesso_RetornaOk() throws Exception {
+        Convite convite = criarConvitePersistido(eventoOrg1, convidadoEvento1, "CODMAIL");
+
+        mockMvc.perform(post("/convites/" + convite.getId() + "/enviar")
+                        .header("Authorization", "Bearer " + tokenOrg1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mensagem").value("Envio de e-mail do convite enfileirado com sucesso."))
+                .andExpect(jsonPath("$.conviteId").value(convite.getId().toString()))
+                .andExpect(jsonPath("$.enfileiradoEm").isNotEmpty());
+
+        verify(conviteEmailProducer).enviarConviteEmail(any());
+    }
+
+    @Test
+    @DisplayName("Cenário 15: Deve retornar 404 Not Found ao tentar enviar convite inexistente")
+    void enviarConvite_Inexistente_RetornaNotFound() throws Exception {
+        mockMvc.perform(post("/convites/" + UUID.randomUUID() + "/enviar")
+                        .header("Authorization", "Bearer " + tokenOrg1))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Cenário 16: Deve retornar 403 Forbidden quando outro organizador tenta enviar o convite")
+    void enviarConvite_OutroOrganizador_RetornaForbidden() throws Exception {
+        Convite convite = criarConvitePersistido(eventoOrg1, convidadoEvento1, "CODMAIL");
+
+        mockMvc.perform(post("/convites/" + convite.getId() + "/enviar")
+                        .header("Authorization", "Bearer " + tokenOrg2))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Cenário 17: Deve retornar 400 Bad Request ao tentar enviar convite com status REVOGADO")
+    void enviarConvite_Revogado_RetornaBadRequest() throws Exception {
+        Convite convite = criarConvitePersistido(eventoOrg1, convidadoEvento1, "CODMAIL");
+        convite.setStatus(StatusConvite.REVOGADO);
+        conviteRepository.save(convite);
+
+        mockMvc.perform(post("/convites/" + convite.getId() + "/enviar")
+                        .header("Authorization", "Bearer " + tokenOrg1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Não é possível enviar um convite com status REVOGADO."));
     }
 
     private Evento criarEventoMock(Usuario organizador, String nome, StatusEvento status) {
