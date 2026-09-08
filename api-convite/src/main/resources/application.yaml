@@ -20,11 +20,23 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        default-requeue-rejected: false
 
 api:
   security:
     token:
       secret: ${JWT_SECRET:12345678901234567890123456789012}
+  rabbitmq:
+    exchange: ${RABBITMQ_EXCHANGE:convite.exchange}
+    queue: ${RABBITMQ_QUEUE:convite.email.enviar.queue}
+    routing-key: ${RABBITMQ_ROUTING_KEY:convite.email.enviar}
 
 logging:
   pattern:
