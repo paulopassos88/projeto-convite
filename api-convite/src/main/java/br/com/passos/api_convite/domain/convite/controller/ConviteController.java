@@ -1,6 +1,7 @@
 package br.com.passos.api_convite.domain.convite.controller;
 
 import br.com.passos.api_convite.domain.convite.dto.ConviteResponseDTO;
+import br.com.passos.api_convite.domain.convite.dto.MensagemSucessoDTO;
 import br.com.passos.api_convite.domain.convite.model.StatusConvite;
 import br.com.passos.api_convite.domain.convite.service.ConviteService;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +59,12 @@ public class ConviteController {
             @PathVariable UUID eventoId,
             @PathVariable UUID convidadoId) {
         ConviteResponseDTO response = conviteService.buscarPorConvidadoId(eventoId, convidadoId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/convites/{id}/enviar")
+    public ResponseEntity<MensagemSucessoDTO> enviar(@PathVariable UUID id) {
+        MensagemSucessoDTO response = conviteService.solicitarEnvio(id);
         return ResponseEntity.ok(response);
     }
 }
