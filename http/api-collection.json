@@ -618,6 +618,29 @@
               ]
             }
           }
+        },
+        {
+          "name": "Enviar Convite por E-mail (Assíncrono)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/convites/{{conviteId}}/enviar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "convites",
+                "{{conviteId}}",
+                "enviar"
+              ]
+            }
+          }
         }
       ]
     }
