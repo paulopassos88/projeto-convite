@@ -37,7 +37,7 @@ services:
     build: ./api-convite
     container_name: convite-api
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8080}:8080"
     depends_on:
       db:
         condition: service_healthy
