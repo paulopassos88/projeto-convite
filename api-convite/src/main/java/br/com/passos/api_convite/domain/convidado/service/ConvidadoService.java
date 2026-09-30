@@ -44,6 +44,7 @@ public class ConvidadoService {
         validarEventoAtivo(evento);
 
         validadoresCriacao.forEach(v -> v.validar(eventoId, dto));
+        validarNumeroDeAcompanhantes(evento, dto.acompanhantesPermitidos());
 
         Convidado convidado = convidadoMapper.toEntity(dto);
         convidado.setEvento(evento);
@@ -80,6 +81,7 @@ public class ConvidadoService {
         Convidado convidado = buscarConvidadoPorIdEEvento(convidadoId, eventoId);
 
         validadoresAtualizacao.forEach(v -> v.validar(eventoId, convidadoId, dto));
+        validarNumeroDeAcompanhantes(evento, dto.acompanhantesPermitidos());
 
         convidadoMapper.updateEntityFromDTO(dto, convidado);
         return convidadoMapper.toResponseDTO(convidado);
@@ -119,6 +121,13 @@ public class ConvidadoService {
     private void validarEventoAtivo(Evento evento) {
         if (evento.getStatus() == StatusEvento.ENCERRADO || evento.getStatus() == StatusEvento.CANCELADO) {
             throw new BusinessException("Não é possível realizar operações em convidados de um evento encerrado ou cancelado.");
+        }
+    }
+
+    private void validarNumeroDeAcompanhantes(Evento evento, Integer acompanhantesPermitidos) {
+        if (acompanhantesPermitidos != null && evento.getAcompanhantesPadrao() != null
+                && acompanhantesPermitidos > evento.getAcompanhantesPadrao()) {
+            throw new BusinessException("Número máximo de acompanhantes atingido para este evento.");
         }
     }
 }
