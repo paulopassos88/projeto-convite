@@ -11,16 +11,11 @@ import br.com.passos.api_convite.domain.convidado.service.validacoes.ValidadorAt
 import br.com.passos.api_convite.domain.convidado.service.validacoes.ValidadorCriacaoConvidado;
 import br.com.passos.api_convite.domain.evento.model.Evento;
 import br.com.passos.api_convite.domain.evento.model.StatusEvento;
-import br.com.passos.api_convite.domain.evento.repository.EventoRepository;
-import br.com.passos.api_convite.domain.evento.service.exceptions.EventoNaoEncontradoException;
-import br.com.passos.api_convite.domain.usuario.model.Perfil;
-import br.com.passos.api_convite.domain.usuario.model.Usuario;
+import br.com.passos.api_convite.domain.evento.service.EventoService;
 import br.com.passos.api_convite.domain.usuario.service.exceptions.BusinessException;
-import br.com.passos.api_convite.infra.security.UsuarioLogadoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,15 +27,14 @@ import java.util.UUID;
 public class ConvidadoService {
 
     private final ConvidadoRepository convidadoRepository;
-    private final EventoRepository eventoRepository;
+    private final EventoService eventoService;
     private final ConvidadoMapper convidadoMapper;
-    private final UsuarioLogadoService usuarioLogadoService;
     private final List<ValidadorCriacaoConvidado> validadoresCriacao;
     private final List<ValidadorAtualizacaoConvidado> validadoresAtualizacao;
 
     @Transactional
     public ConvidadoResponseDTO criar(UUID eventoId, CriarConvidadoDTO dto) {
-        Evento evento = buscarEventoComValidacaoAcesso(eventoId);
+        Evento evento = eventoService.buscarEventoComValidacaoAcesso(eventoId);
         validarEventoAtivo(evento);
 
         validadoresCriacao.forEach(v -> v.validar(eventoId, dto));
@@ -55,7 +49,7 @@ public class ConvidadoService {
 
     @Transactional(readOnly = true)
     public Page<ConvidadoResponseDTO> listar(UUID eventoId, String busca, Pageable pageable) {
-        buscarEventoComValidacaoAcesso(eventoId);
+        eventoService.buscarEventoComValidacaoAcesso(eventoId);
 
         if (busca != null && !busca.isBlank()) {
             return convidadoRepository.findAllByEventoIdAndBusca(eventoId, busca.trim(), pageable)
@@ -68,14 +62,14 @@ public class ConvidadoService {
 
     @Transactional(readOnly = true)
     public ConvidadoResponseDTO buscarPorId(UUID eventoId, UUID convidadoId) {
-        buscarEventoComValidacaoAcesso(eventoId);
+        eventoService.buscarEventoComValidacaoAcesso(eventoId);
         Convidado convidado = buscarConvidadoPorIdEEvento(convidadoId, eventoId);
         return convidadoMapper.toResponseDTO(convidado);
     }
 
     @Transactional
     public ConvidadoResponseDTO atualizar(UUID eventoId, UUID convidadoId, AtualizarConvidadoDTO dto) {
-        Evento evento = buscarEventoComValidacaoAcesso(eventoId);
+        Evento evento = eventoService.buscarEventoComValidacaoAcesso(eventoId);
         validarEventoAtivo(evento);
 
         Convidado convidado = buscarConvidadoPorIdEEvento(convidadoId, eventoId);
@@ -89,28 +83,11 @@ public class ConvidadoService {
 
     @Transactional
     public void remover(UUID eventoId, UUID convidadoId) {
-        Evento evento = buscarEventoComValidacaoAcesso(eventoId);
+        Evento evento = eventoService.buscarEventoComValidacaoAcesso(eventoId);
         validarEventoAtivo(evento);
 
         Convidado convidado = buscarConvidadoPorIdEEvento(convidadoId, eventoId);
         convidadoRepository.delete(convidado);
-    }
-
-    private Evento buscarEventoComValidacaoAcesso(UUID eventoId) {
-        Evento evento = eventoRepository.findById(eventoId)
-                .orElseThrow(() -> new EventoNaoEncontradoException("Evento não encontrado para o ID: " + eventoId));
-
-        Usuario usuarioLogado = usuarioLogadoService.getUsuarioLogado()
-                .orElseThrow(() -> new IllegalStateException("Usuário não autenticado"));
-
-        boolean ehAdmin = usuarioLogado.getPerfil() == Perfil.ADMIN;
-        boolean ehDono = evento.getOrganizador().getId().equals(usuarioLogado.getId());
-
-        if (!ehAdmin && !ehDono) {
-            throw new AccessDeniedException("Você não tem permissão para acessar ou gerenciar convidados deste evento.");
-        }
-
-        return evento;
     }
 
     private Convidado buscarConvidadoPorIdEEvento(UUID convidadoId, UUID eventoId) {

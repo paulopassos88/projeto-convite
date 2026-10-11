@@ -62,13 +62,13 @@ public class EventoService {
 
     @Transactional(readOnly = true)
     public EventoResponseDTO buscarPorId(UUID id) {
-        Evento evento = buscarEventoPorIdComValidacaoAcesso(id);
+        Evento evento = buscarEventoComValidacaoAcesso(id);
         return eventoMapper.toResponseDTO(evento);
     }
 
     @Transactional
     public EventoResponseDTO atualizar(UUID id, AtualizarEventoDTO dto) {
-        Evento evento = buscarEventoPorIdComValidacaoAcesso(id);
+        Evento evento = buscarEventoComValidacaoAcesso(id);
 
         if (evento.getStatus() == StatusEvento.ENCERRADO || evento.getStatus() == StatusEvento.CANCELADO) {
             throw new BusinessException("Não é possível alterar um evento encerrado ou cancelado.");
@@ -80,14 +80,18 @@ public class EventoService {
 
     @Transactional
     public void cancelar(UUID id) {
-        Evento evento = buscarEventoPorIdComValidacaoAcesso(id);
+        Evento evento = buscarEventoComValidacaoAcesso(id);
         evento.setStatus(StatusEvento.CANCELADO);
     }
 
-    private Evento buscarEventoPorIdComValidacaoAcesso(UUID id) {
-        Evento evento = eventoRepository.findById(id)
-                .orElseThrow(() -> new EventoNaoEncontradoException("Evento não encontrado para o ID: " + id));
+    public Evento buscarEventoComValidacaoAcesso(UUID eventoId) {
+        Evento evento = eventoRepository.findById(eventoId)
+                .orElseThrow(() -> new EventoNaoEncontradoException("Evento não encontrado para o ID: " + eventoId));
+        validarAcessoEvento(evento);
+        return evento;
+    }
 
+    public void validarAcessoEvento(Evento evento) {
         Usuario usuarioLogado = usuarioLogadoService.getUsuarioLogado()
                 .orElseThrow(() -> new IllegalStateException("Usuário não autenticado"));
 
@@ -95,9 +99,7 @@ public class EventoService {
         boolean ehDono = evento.getOrganizador().getId().equals(usuarioLogado.getId());
 
         if (!ehAdmin && !ehDono) {
-            throw new AccessDeniedException("Você não tem permissão para acessar ou modificar este evento.");
+            throw new AccessDeniedException("Você não tem permissão para acessar ou gerenciar este evento.");
         }
-
-        return evento;
     }
 }
