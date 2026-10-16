@@ -29,10 +29,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -332,6 +334,117 @@ class ConviteControllerTest extends AbstractIntegrationTest {
                         .header("Authorization", "Bearer " + tokenOrg1))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Não é possível enviar um convite com status REVOGADO."));
+    }
+
+    @Test
+    @DisplayName("Cenário 18: Deve revogar convite com sucesso e retornar 204 No Content")
+    void revogarConvite_ComSucesso_RetornaNoContent() throws Exception {
+        Convite convite = criarConvitePersistido(eventoOrg1, convidadoEvento1, "CODREV");
+
+        mockMvc.perform(patch("/convites/" + convite.getId() + "/revogar")
+                        .header("Authorization", "Bearer " + tokenOrg1))
+                .andExpect(status().isNoContent());
+
+        Convite conviteAtualizado = conviteRepository.findById(convite.getId()).orElseThrow();
+        assertThat(conviteAtualizado.getStatus()).isEqualTo(StatusConvite.REVOGADO);
+    }
+
+    @Test
+    @DisplayName("Cenário 19: Deve retornar 400 Bad Request ao tentar revogar convite já utilizado")
+    void revogarConvite_JaUtilizado_RetornaBadRequest() throws Exception {
+        Convite convite = criarConvitePersistido(eventoOrg1, convidadoEvento1, "CODUTIL");
+        convite.setStatus(StatusConvite.UTILIZADO);
+        conviteRepository.save(convite);
+
+        mockMvc.perform(patch("/convites/" + convite.getId() + "/revogar")
+                        .header("Authorization", "Bearer " + tokenOrg1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Não é possível revogar um convite já utilizado."));
+    }
+
+    @Test
+    @DisplayName("Cenário 20: Deve retornar 400 Bad Request ao tentar revogar convite já revogado")
+    void revogarConvite_JaRevogado_RetornaBadRequest() throws Exception {
+        Convite convite = criarConvitePersistido(eventoOrg1, convidadoEvento1, "CODREV2");
+        convite.setStatus(StatusConvite.REVOGADO);
+        conviteRepository.save(convite);
+
+        mockMvc.perform(patch("/convites/" + convite.getId() + "/revogar")
+                        .header("Authorization", "Bearer " + tokenOrg1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Não é possível revogar um convite já revogado."));
+    }
+
+    @Test
+    @DisplayName("Cenário 21: Deve retornar 403 Forbidden quando outro organizador tenta revogar o convite")
+    void revogarConvite_OutroOrganizador_RetornaForbidden() throws Exception {
+        Convite convite = criarConvitePersistido(eventoOrg1, convidadoEvento1, "CODREV3");
+
+        mockMvc.perform(patch("/convites/" + convite.getId() + "/revogar")
+                        .header("Authorization", "Bearer " + tokenOrg2))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Cenário 22: Deve retornar 404 Not Found ao tentar revogar convite inexistente")
+    void revogarConvite_Inexistente_RetornaNotFound() throws Exception {
+        mockMvc.perform(patch("/convites/" + UUID.randomUUID() + "/revogar")
+                        .header("Authorization", "Bearer " + tokenOrg1))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Cenário 23: Deve retornar 400 Bad Request ao tentar revogar convite de evento cancelado")
+    void revogarConvite_EventoCancelado_RetornaBadRequest() throws Exception {
+        Evento eventoCancelado = criarEventoMock(organizador1, "Evento Cancelado", StatusEvento.CANCELADO);
+        eventoRepository.save(eventoCancelado);
+
+        Convidado convidadoCancelado = criarConvidadoMock(eventoCancelado, "Convidado Cancelado", "canc@teste.com");
+        convidadoRepository.save(convidadoCancelado);
+
+        Convite convite = criarConvitePersistido(eventoCancelado, convidadoCancelado, "CODCANC");
+
+        mockMvc.perform(patch("/convites/" + convite.getId() + "/revogar")
+                        .header("Authorization", "Bearer " + tokenOrg1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Não é possível realizar operações de convite em um evento encerrado ou cancelado."));
+    }
+
+    @Test
+    @DisplayName("Cenário 24: Deve reemitir convite revogado com novo código único e status PENDENTE (201 Created)")
+    void gerarConvite_ReemissaoConviteRevogado_RetornaCreatedComNovoCodigo() throws Exception {
+        Convite conviteRevogado = criarConvitePersistido(eventoOrg1, convidadoEvento1, "COD_ANTIGO");
+        conviteRevogado.setStatus(StatusConvite.REVOGADO);
+        conviteRevogado.setStatusEnvio(StatusEnvio.FALHA);
+        conviteRepository.save(conviteRevogado);
+
+        mockMvc.perform(post("/eventos/" + eventoOrg1.getId() + "/convidados/" + convidadoEvento1.getId() + "/convite")
+                        .header("Authorization", "Bearer " + tokenOrg1)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(conviteRevogado.getId().toString()))
+                .andExpect(jsonPath("$.codigo").value(not("COD_ANTIGO")))
+                .andExpect(jsonPath("$.status").value("PENDENTE"))
+                .andExpect(jsonPath("$.statusEnvio").value("NAO_ENVIADO"));
+
+        Convite conviteAtualizado = conviteRepository.findById(conviteRevogado.getId()).orElseThrow();
+        assertThat(conviteAtualizado.getCodigo()).isNotEqualTo("COD_ANTIGO");
+        assertThat(conviteAtualizado.getStatus()).isEqualTo(StatusConvite.PENDENTE);
+        assertThat(conviteAtualizado.getStatusEnvio()).isEqualTo(StatusEnvio.NAO_ENVIADO);
+        assertThat(conviteRepository.findAllByEventoId(eventoOrg1.getId(), null)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Cenário 25: Deve permitir que usuário ADMIN revogue convite de qualquer evento (204 No Content)")
+    void revogarConvite_ComoAdmin_RetornaNoContent() throws Exception {
+        Convite convite = criarConvitePersistido(eventoOrg1, convidadoEvento1, "CODADMIN");
+
+        mockMvc.perform(patch("/convites/" + convite.getId() + "/revogar")
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isNoContent());
+
+        Convite conviteAtualizado = conviteRepository.findById(convite.getId()).orElseThrow();
+        assertThat(conviteAtualizado.getStatus()).isEqualTo(StatusConvite.REVOGADO);
     }
 
     private Evento criarEventoMock(Usuario organizador, String nome, StatusEvento status) {
