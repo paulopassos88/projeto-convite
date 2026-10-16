@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -49,8 +50,23 @@ public class ConviteService {
 
         Convidado convidado = buscarConvidadoPorIdEEvento(convidadoId, eventoId);
 
-        if (conviteRepository.existsByConvidadoIdAndEventoId(convidadoId, eventoId)) {
-            throw new ConviteJaGeradoException("Já existe um convite gerado para este convidado no evento informado.");
+        Optional<Convite> conviteExistente = conviteRepository.findByConvidadoIdAndEventoId(convidadoId, eventoId);
+        if (conviteExistente.isPresent()) {
+            Convite convite = conviteExistente.get();
+            if (convite.getStatus() != StatusConvite.REVOGADO) {
+                throw new ConviteJaGeradoException("Já existe um convite gerado para este convidado no evento informado.");
+            }
+
+            // Reemissão de convite revogado (RN-011): novo código único, status PENDENTE e statusEnvio NAO_ENVIADO
+            String novoCodigo = geradorCodigoConviteService.gerarCodigoUnico();
+            convite.setCodigo(novoCodigo);
+            convite.setStatus(StatusConvite.PENDENTE);
+            convite.setStatusEnvio(StatusEnvio.NAO_ENVIADO);
+            convite.setEnviadoEm(null);
+
+            conviteRepository.save(convite);
+            log.info("Convite revogado reemitido com sucesso: conviteId={}, convidadoId={}", convite.getId(), convidadoId);
+            return conviteMapper.toResponseDTO(convite);
         }
 
         String codigo = geradorCodigoConviteService.gerarCodigoUnico();
@@ -155,6 +171,28 @@ public class ConviteService {
             conviteRepository.save(convite);
             log.warn("Status de envio atualizado para FALHA: conviteId={}", conviteId);
         });
+    }
+
+    @Transactional
+    public void revogarConvite(UUID conviteId) {
+        Convite convite = conviteRepository.findById(conviteId)
+                .orElseThrow(() -> new ConviteNaoEncontradoException("Convite não encontrado para o ID: " + conviteId));
+
+        Evento evento = convite.getEvento();
+        eventoService.validarAcessoEvento(evento);
+        validarEventoAtivo(evento);
+
+        if (convite.getStatus() == StatusConvite.UTILIZADO) {
+            throw new BusinessException("Não é possível revogar um convite já utilizado.");
+        }
+
+        if (convite.getStatus() == StatusConvite.REVOGADO) {
+            throw new BusinessException("Não é possível revogar um convite já revogado.");
+        }
+
+        convite.setStatus(StatusConvite.REVOGADO);
+        conviteRepository.save(convite);
+        log.info("Status do convite atualizado para REVOGADO: conviteId={}", conviteId);
     }
 
     private Convidado buscarConvidadoPorIdEEvento(UUID convidadoId, UUID eventoId) {

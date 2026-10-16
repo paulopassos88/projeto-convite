@@ -67,4 +67,10 @@ public class ConviteController {
         MensagemSucessoDTO response = conviteService.solicitarEnvio(id);
         return ResponseEntity.ok(response);
     }
+
+    @PatchMapping("/convites/{id}/revogar")
+    public ResponseEntity<Void> revogar(@PathVariable UUID id) {
+        conviteService.revogarConvite(id);
+        return ResponseEntity.noContent().build();
+    }
 }
