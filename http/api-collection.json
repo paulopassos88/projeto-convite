@@ -641,6 +641,29 @@
               ]
             }
           }
+        },
+        {
+          "name": "Revogar Convite",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/convites/{{conviteId}}/revogar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "convites",
+                "{{conviteId}}",
+                "revogar"
+              ]
+            }
+          }
         }
       ]
     }
