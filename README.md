@@ -35,7 +35,7 @@ API RESTful para gestão de eventos, lista de convidados, emissão/revogação d
 
 * **Linguagem & Framework:** Java 25, Spring Boot 4.1.0
 * **Banco de Dados & Migrations:** PostgreSQL 16, Spring Data JPA, Flyway
-* **Segurança & Autenticação:** Spring Security (Stateless), JWT (`jjwt`), RBAC (`ADMIN`, `ORGANIZADOR`, `PORTARIA`)
+* **Segurança & Autenticação:** Spring Security (Stateless), JWT (`jjwt`), RBAC (`ADMIN`, `ORGANIZADOR`, `CONTROLADOR`)
 * **Mensageria:** Spring Boot AMQP com **RabbitMQ 3** (envio assíncrono de convites por e-mail)
 * **Documentação da API:** SpringDoc OpenAPI 3 / Swagger UI
 * **Testes Automatizados:** JUnit 5, MockMvc, **Testcontainers** (PostgreSQL real em contêiner Docker)
@@ -152,10 +152,6 @@ http://localhost:8080/api/v1
 
 ### Passo 1: Autenticação (Login e Token JWT)
 
-Na primeira execução, o Flyway cria automaticamente um usuário administrador padrão:
-* **E-mail:** `admin@convite.com`
-* **Senha:** `admin123`
-
 #### `POST /api/v1/auth/login`
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/login \
@@ -182,7 +178,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 ### Passo 2: Gestão de Usuários
 
 #### 2.1 Cadastrar novo usuário (Exclusivo `ADMIN`) — `POST /api/v1/usuarios`
-Perfis disponíveis: `ADMIN`, `ORGANIZADOR`, `PORTARIA`.
+Perfis disponíveis: `ADMIN`, `ORGANIZADOR`, `CONTROLADOR`.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/usuarios \
@@ -202,16 +198,8 @@ curl -X POST http://localhost:8080/api/v1/usuarios \
   "id": "660e8400-e29b-41d4-a716-446655440001",
   "nome": "João Organizador",
   "email": "organizador@convite.com",
-  "perfil": "ORGANIZADOR",
-  "ativo": true,
-  "criadoEm": "2026-10-16T15:00:00"
+  "perfil": "ORGANIZADOR"
 }
-```
-
-#### 2.2 Consultar dados do próprio usuário autenticado — `GET /api/v1/usuarios/me`
-```bash
-curl -X GET http://localhost:8080/api/v1/usuarios/me \
-  -H "Authorization: Bearer <SEU_TOKEN_JWT>"
 ```
 
 ---
@@ -221,19 +209,23 @@ curl -X GET http://localhost:8080/api/v1/usuarios/me \
 Usuários com perfil `ORGANIZADOR` ou `ADMIN` podem criar e gerenciar eventos. Um `ORGANIZADOR` possui acesso apenas aos eventos que ele próprio criou, enquanto o `ADMIN` possui visão global.
 
 #### 3.1 Criar um evento — `POST /api/v1/eventos`
-> **Regras:** `dataInicio` deve ser uma data futura e `dataFim` deve ser posterior a `dataInicio` (RN-005).
+> **Regras:** `dataInicio` não pode estar no passado e `dataTermino` deve ser futura e posterior a `dataInicio`.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/eventos \
   -H "Authorization: Bearer <SEU_TOKEN_JWT>" \
   -H "Content-Type: application/json" \
   -d '{
-    "nome": "Festa de Confraternização 2027",
-    "descricao": "Evento anual da empresa com jantar e música ao vivo.",
-    "local": "Espaço Villa Lobos - São Paulo/SP",
-    "dataInicio": "2027-12-15T19:00:00",
-    "dataFim": "2027-12-15T23:59:00",
-    "limiteConvidados": 150
+    "nome": "Casamento Real",
+    "descricao": "Cerimônia e festa de recepção",
+    "localNome": "Villa Bisutti",
+    "endereco": "Rua das Flores, 123 - São Paulo, SP",
+    "linkMaps": "https://maps.google.com/?q=Villa+Bisutti",
+    "dataInicio": "2027-12-20T19:00:00",
+    "dataTermino": "2027-12-21T02:00:00",
+    "antecedenciaMinutos": 30,
+    "toleranciaAtrasoMinutos": 45,
+    "acompanhantesPadrao": 2
   }'
 ```
 
@@ -241,15 +233,20 @@ curl -X POST http://localhost:8080/api/v1/eventos \
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
-  "nome": "Festa de Confraternização 2027",
-  "descricao": "Evento anual da empresa com jantar e música ao vivo.",
-  "local": "Espaço Villa Lobos - São Paulo/SP",
-  "dataInicio": "2027-12-15T19:00:00",
-  "dataFim": "2027-12-15T23:59:00",
-  "limiteConvidados": 150,
+  "organizadorNome": "João Organizador",
+  "nome": "Casamento Real",
+  "descricao": "Cerimônia e festa de recepção",
+  "localNome": "Villa Bisutti",
+  "endereco": "Rua das Flores, 123 - São Paulo, SP",
+  "linkMaps": "https://maps.google.com/?q=Villa+Bisutti",
+  "dataInicio": "2027-12-20T19:00:00",
+  "dataTermino": "2027-12-21T02:00:00",
+  "antecedenciaMinutos": 30,
+  "toleranciaAtrasoMinutos": 45,
+  "acompanhantesPadrao": 2,
   "status": "ATIVO",
-  "organizadorId": "660e8400-e29b-41d4-a716-446655440001",
-  "criadoEm": "2026-10-16T15:05:00"
+  "criadoEm": "2026-10-16T15:05:00",
+  "atualizadoEm": "2026-10-16T15:05:00"
 }
 ```
 
@@ -260,15 +257,15 @@ curl -X GET "http://localhost:8080/api/v1/eventos?page=0&size=10&sort=dataInicio
 ```
 
 #### 3.3 Buscar, Atualizar ou Cancelar Evento
-* **Buscar por ID:** `GET /api/v1/eventos/{eventoId}`
-* **Atualizar:** `PUT /api/v1/eventos/{eventoId}` *(não permite reduzir `limiteConvidados` abaixo do total já alocado na lista)*
-* **Cancelar (Soft Delete):** `DELETE /api/v1/eventos/{eventoId}` *(altera o status para `CANCELADO`, retornando `204 No Content`)*
+* **Buscar por ID:** `GET /api/v1/eventos/{id}`
+* **Atualizar:** `PUT /api/v1/eventos/{id}`
+* **Cancelar (Soft Delete):** `DELETE /api/v1/eventos/{id}` *(altera o status para `CANCELADO`, retornando `204 No Content`)*
 
 ---
 
 ### Passo 4: Gestão de Convidados
 
-Cada convidado ocupa `1 + limiteAcompanhantes` vagas na capacidade máxima do evento (`limiteConvidados`). Não é permitido cadastrar dois convidados com o mesmo e-mail no mesmo evento.
+A quantidade de `acompanhantesPermitidos` de cada convidado deve respeitar o teto `acompanhantesPadrao` configurado no evento. Não é permitido cadastrar dois convidados com o mesmo e-mail no mesmo evento (`409 Conflict`).
 
 #### 4.1 Adicionar convidado ao evento — `POST /api/v1/eventos/{eventoId}/convidados`
 ```bash
@@ -276,10 +273,11 @@ curl -X POST http://localhost:8080/api/v1/eventos/550e8400-e29b-41d4-a716-446655
   -H "Authorization: Bearer <SEU_TOKEN_JWT>" \
   -H "Content-Type: application/json" \
   -d '{
-    "nome": "Maria Oliveira",
-    "email": "maria.oliveira@email.com",
-    "telefone": "11999998888",
-    "limiteAcompanhantes": 2
+    "nome": "Carlos Silva",
+    "email": "carlos@email.com",
+    "telefone": "+5511999999999",
+    "acompanhantesPermitidos": 1,
+    "observacoes": "Mesa VIP"
   }'
 ```
 
@@ -287,18 +285,19 @@ curl -X POST http://localhost:8080/api/v1/eventos/550e8400-e29b-41d4-a716-446655
 ```json
 {
   "id": "770e8400-e29b-41d4-a716-446655440002",
-  "nome": "Maria Oliveira",
-  "email": "maria.oliveira@email.com",
-  "telefone": "11999998888",
-  "limiteAcompanhantes": 2,
   "eventoId": "550e8400-e29b-41d4-a716-446655440000",
+  "nome": "Carlos Silva",
+  "email": "carlos@email.com",
+  "telefone": "+5511999999999",
+  "acompanhantesPermitidos": 1,
+  "observacoes": "Mesa VIP",
   "criadoEm": "2026-10-16T15:10:00"
 }
 ```
 
 #### 4.2 Listar convidados (com filtro opcional por nome ou e-mail) — `GET /api/v1/eventos/{eventoId}/convidados`
 ```bash
-curl -X GET "http://localhost:8080/api/v1/eventos/550e8400-e29b-41d4-a716-446655440000/convidados?busca=Maria&page=0&size=10" \
+curl -X GET "http://localhost:8080/api/v1/eventos/550e8400-e29b-41d4-a716-446655440000/convidados?busca=Carlos&page=0&size=10" \
   -H "Authorization: Bearer <SEU_TOKEN_JWT>"
 ```
 
@@ -307,7 +306,7 @@ curl -X GET "http://localhost:8080/api/v1/eventos/550e8400-e29b-41d4-a716-446655
 ### Passo 5: Geração, Envio, Revogação e Reemissão de Convites
 
 #### 5.1 Gerar convite para um convidado — `POST /api/v1/eventos/{eventoId}/convidados/{convidadoId}/convite`
-Gera um convite único com status inicial `PENDENTE` e um token exclusivo.
+Gera um convite único com status inicial `PENDENTE`, `statusEnvio = NAO_ENVIADO` e um código alfanumérico seguro de 8 caracteres.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/eventos/550e8400-e29b-41d4-a716-446655440000/convidados/770e8400-e29b-41d4-a716-446655440002/convite \
@@ -318,19 +317,22 @@ curl -X POST http://localhost:8080/api/v1/eventos/550e8400-e29b-41d4-a716-446655
 ```json
 {
   "id": "880e8400-e29b-41d4-a716-446655440003",
-  "token": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "status": "PENDENTE",
   "convidadoId": "770e8400-e29b-41d4-a716-446655440002",
-  "nomeConvidado": "Maria Oliveira",
-  "emailConvidado": "maria.oliveira@email.com",
-  "limiteAcompanhantes": 2,
-  "dataResposta": null,
+  "nomeConvidado": "Carlos Silva",
+  "emailConvidado": "carlos@email.com",
+  "eventoId": "550e8400-e29b-41d4-a716-446655440000",
+  "nomeEvento": "Casamento Real",
+  "codigo": "7KM9XP2A",
+  "qrCodeUrl": null,
+  "status": "PENDENTE",
+  "statusEnvio": "NAO_ENVIADO",
+  "enviadoEm": null,
   "criadoEm": "2026-10-16T15:15:00"
 }
 ```
 
 #### 5.2 Solicitar envio do convite por e-mail (Assíncrono via RabbitMQ) — `POST /api/v1/convites/{conviteId}/enviar`
-Publica o evento de disparo na fila `convite.envio.email.queue` do RabbitMQ e retorna imediatamente ao cliente.
+Publica o evento de disparo na fila `convite.email.enviar.queue` (via exchange `convite.exchange`) do RabbitMQ e retorna imediatamente ao cliente.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/convites/880e8400-e29b-41d4-a716-446655440003/enviar \
@@ -340,12 +342,14 @@ curl -X POST http://localhost:8080/api/v1/convites/880e8400-e29b-41d4-a716-44665
 **Resposta (`200 OK`):**
 ```json
 {
-  "mensagem": "Solicitação de envio de convite encaminhada para processamento."
+  "conviteId": "880e8400-e29b-41d4-a716-446655440003",
+  "mensagem": "Envio de e-mail do convite enfileirado com sucesso.",
+  "enfileiradoEm": "2026-10-16T15:16:00"
 }
 ```
 
 #### 5.3 Revogar um convite — `PATCH /api/v1/convites/{conviteId}/revogar`
-Invalida imediatamente o convite (alterando seu status para `REVOGADO`), impedindo novos envios de e-mail ou confirmações de presença com o token antigo.
+Invalida imediatamente o convite (alterando seu status para `REVOGADO`), impedindo novos envios de e-mail ou validações na portaria com o código antigo.
 
 ```bash
 curl -X PATCH http://localhost:8080/api/v1/convites/880e8400-e29b-41d4-a716-446655440003/revogar \
@@ -354,7 +358,7 @@ curl -X PATCH http://localhost:8080/api/v1/convites/880e8400-e29b-41d4-a716-4466
 **Resposta:** `204 No Content`
 
 #### 5.4 Reemitir um convite revogado
-Se um convidado tiver seu convite com status `REVOGADO`, basta chamar novamente o endpoint de geração (`POST /api/v1/eventos/{eventoId}/convidados/{convidadoId}/convite`). O sistema reaproveitará o registro existente, gerará um **novo token único**, limpará a `dataResposta` e restaurará o status para `PENDENTE`.
+Se um convidado tiver seu convite com status `REVOGADO`, basta chamar novamente o endpoint de geração (`POST /api/v1/eventos/{eventoId}/convidados/{convidadoId}/convite`). O sistema reaproveitará o registro existente, gerará um **novo código único**, resetará `statusEnvio` para `NAO_ENVIADO`, limpará `enviadoEm` e restaurará o status para `PENDENTE`.
 
 ---
 
@@ -364,16 +368,13 @@ Se um convidado tiver seu convite com status `REVOGADO`, basta chamar novamente 
 | :--- | :---: | :--- | :--- | :--- |
 | **Autenticação** | `POST` | `/api/v1/auth/login` | Autentica usuário e retorna token JWT | Público |
 | **Usuários** | `POST` | `/api/v1/usuarios` | Cadastra novo usuário no sistema | `ADMIN` |
-| **Usuários** | `GET` | `/api/v1/usuarios` | Lista todos os usuários cadastrados | `ADMIN` |
-| **Usuários** | `GET` | `/api/v1/usuarios/me` | Retorna dados do usuário autenticado | Autenticado (Todos) |
-| **Usuários** | `PATCH` | `/api/v1/usuarios/{id}/desativar` | Desativa um usuário | `ADMIN` |
 | **Eventos** | `POST` | `/api/v1/eventos` | Cria um novo evento | `ADMIN`, `ORGANIZADOR` |
-| **Eventos** | `GET` | `/api/v1/eventos` | Lista eventos ativos paginados | `ADMIN`, `ORGANIZADOR`* |
+| **Eventos** | `GET` | `/api/v1/eventos` | Lista eventos paginados | `ADMIN`, `ORGANIZADOR`* |
 | **Eventos** | `GET` | `/api/v1/eventos/{id}` | Busca detalhes de um evento | `ADMIN`, `ORGANIZADOR`* |
-| **Eventos** | `PUT` | `/api/v1/eventos/{id}` | Atualiza dados de um evento ativo | `ADMIN`, `ORGANIZADOR`* |
+| **Eventos** | `PUT` | `/api/v1/eventos/{id}` | Atualiza dados de um evento | `ADMIN`, `ORGANIZADOR`* |
 | **Eventos** | `DELETE` | `/api/v1/eventos/{id}` | Cancela um evento (Soft Delete) | `ADMIN`, `ORGANIZADOR`* |
 | **Convidados** | `POST` | `/api/v1/eventos/{eventoId}/convidados` | Adiciona convidado ao evento | `ADMIN`, `ORGANIZADOR`* |
-| **Convidados** | `GET` | `/api/v1/eventos/{eventoId}/convidados` | Lista convidados do evento (paginado) | `ADMIN`, `ORGANIZADOR`* |
+| **Convidados** | `GET` | `/api/v1/eventos/{eventoId}/convidados` | Lista convidados do evento (paginado, filtro `busca`) | `ADMIN`, `ORGANIZADOR`* |
 | **Convidados** | `GET` | `/api/v1/eventos/{eventoId}/convidados/{id}` | Busca convidado por ID | `ADMIN`, `ORGANIZADOR`* |
 | **Convidados** | `PUT` | `/api/v1/eventos/{eventoId}/convidados/{id}` | Atualiza dados do convidado | `ADMIN`, `ORGANIZADOR`* |
 | **Convidados** | `DELETE` | `/api/v1/eventos/{eventoId}/convidados/{id}` | Remove convidado do evento | `ADMIN`, `ORGANIZADOR`* |
@@ -395,5 +396,6 @@ O repositório inclui uma coleção completa do Postman em [`http/api-collection
 1. Abra o **Postman** e clique em **Import**.
 2. Selecione o arquivo `http/api-collection.json`.
 3. As variáveis de coleção já vêm pré-configuradas (`baseUrl = http://localhost:8080/api/v1`).
-4. Execute primeiro a requisição **`1. Autenticação > Login Admin`** (ou `Login Organizador`): o script de pós-resposta salvará automaticamente o token JWT nas variáveis `jwtToken` / `organizadorToken`.
-5. Da mesma forma, ao criar um Evento, Convidado ou Convite pela coleção, os IDs gerados (`eventoId`, `convidadoId`, `conviteId`, `conviteToken`) são capturados e preenchidos automaticamente para as requisições seguintes.
+4. Execute primeiro a requisição **`Autenticação > Login`** (ou `Login Organizador`): o script de pós-resposta salvará automaticamente o token JWT na variável de coleção.
+5. Da mesma forma, ao criar um Evento, Convidado ou Convite pela coleção, os IDs gerados (`eventoId`, `convidadoId`, `conviteId`) são capturados e preenchidos automaticamente para as requisições seguintes.
+
