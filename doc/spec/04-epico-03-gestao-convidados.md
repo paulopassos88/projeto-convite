@@ -26,10 +26,11 @@ Implementar o fluxo completo de cadastro manual, busca, edição, remoção e co
   - `ValidadorEmailDuplicadoCriacaoConvidado`: Lança `EmailConvidadoDuplicadoException` (HTTP 409 Conflict) em caso de duplicidade.
   - `ValidadorEmailDuplicadoAtualizacaoConvidado`: Lança `EmailConvidadoDuplicadoException` na edição se houver colisão de e-mail.
 - Proteção de Eventos Inativos (`RN-014`): Impede criação, alteração ou exclusão de convidados quando o evento estiver `ENCERRADO` ou `CANCELADO`.
+- Limite de Acompanhantes: Valida se a quantidade de acompanhantes permitidos informada não ultrapassa o limite padrão estipulado para o evento (`BusinessException` / HTTP 400).
 
 ### 3. Service e Controle de Acesso (RBAC & Ownership)
 - `ConvidadoService`:
-  - `criar`: Valida status do evento, executa validadores e persiste o convidado.
+  - `criar`: Valida status do evento, executa validadores, valida teto de acompanhantes e persiste o convidado.
   - `listar`: Busca paginada com suporte a filtro `busca` (por nome ou e-mail).
   - `buscarPorId`, `atualizar`, `remover`: Validações completas de existência e permissão.
   - Isolamento de acesso: Usuários `ORGANIZADOR` só manipulam convidados de seus próprios eventos (`AccessDeniedException` / HTTP 403 para terceiros); usuários `ADMIN` possuem acesso irrestrito.
@@ -47,7 +48,7 @@ Implementar o fluxo completo de cadastro manual, busca, edição, remoção e co
 - Arquivo `http/api-collection.json` atualizado com a pasta **Convidados**, incluindo variável `convidadoId`, script de captura automática do ID no teste de criação e payloads padronizados.
 
 ### 6. Testes de Integração (Testcontainers)
-- `ConvidadoControllerTest`: 15 testes de integração executados contra PostgreSQL real via Testcontainers cobrindo 100% dos fluxos do Épico:
+- `ConvidadoControllerTest`: 17 testes de integração executados contra PostgreSQL real via Testcontainers cobrindo 100% dos fluxos do Épico:
   1. Cadastro com dados válidos e header `Location` (HTTP 201).
   2. Bloqueio de e-mail duplicado no mesmo evento (HTTP 409).
   3. Permissão do mesmo e-mail em eventos distintos (HTTP 201).
@@ -63,3 +64,5 @@ Implementar o fluxo completo de cadastro manual, busca, edição, remoção e co
   13. Bloqueio de atualização com e-mail duplicado de outro convidado (HTTP 409).
   14. Remoção de convidado com exclusão confirmada no banco (HTTP 204).
   15. Bloqueio de operações em evento cancelado/encerrado (HTTP 400).
+  16. Bloqueio de criação com número de acompanhantes superior ao limite padrão do evento (HTTP 400).
+  17. Bloqueio de atualização com número de acompanhantes superior ao limite padrão do evento (HTTP 400).

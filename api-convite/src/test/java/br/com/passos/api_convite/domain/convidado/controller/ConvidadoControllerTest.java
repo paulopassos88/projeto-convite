@@ -382,6 +382,47 @@ class ConvidadoControllerTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.detail").value("Não é possível realizar operações em convidados de um evento encerrado ou cancelado."));
     }
 
+    @Test
+    @DisplayName("Cenário 16: Deve retornar 400 Bad Request ao tentar cadastrar convidado com número de acompanhantes superior ao limite do evento")
+    void criarConvidado_NumeroAcompanhantesExcedeLimiteDoEvento_RetornaBadRequest() throws Exception {
+        CriarConvidadoDTO dto = new CriarConvidadoDTO(
+                "Convidado Excedente",
+                "excedente@teste.com",
+                null,
+                10,
+                null
+        );
+
+        mockMvc.perform(post("/eventos/" + eventoOrg1.getId() + "/convidados")
+                        .header("Authorization", "Bearer " + tokenOrg1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Número máximo de acompanhantes atingido para este evento."));
+    }
+
+    @Test
+    @DisplayName("Cenário 17: Deve retornar 400 Bad Request ao tentar atualizar convidado com número de acompanhantes superior ao limite do evento")
+    void atualizarConvidado_NumeroAcompanhantesExcedeLimiteDoEvento_RetornaBadRequest() throws Exception {
+        Convidado convidado = criarConvidadoMock(eventoOrg1, "Convidado Teste", "teste.limite@teste.com");
+        convidadoRepository.save(convidado);
+
+        AtualizarConvidadoDTO dto = new AtualizarConvidadoDTO(
+                "Convidado Atualizado",
+                "teste.limite@teste.com",
+                null,
+                10,
+                null
+        );
+
+        mockMvc.perform(put("/eventos/" + eventoOrg1.getId() + "/convidados/" + convidado.getId())
+                        .header("Authorization", "Bearer " + tokenOrg1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Número máximo de acompanhantes atingido para este evento."));
+    }
+
     private Evento criarEventoMock(Usuario organizador, String nome, StatusEvento status) {
         Evento evento = new Evento();
         evento.setNome(nome);
@@ -392,7 +433,7 @@ class ConvidadoControllerTest extends AbstractIntegrationTest {
         evento.setDataTermino(LocalDateTime.now().plusDays(6));
         evento.setAntecedenciaMinutos(30);
         evento.setToleranciaAtrasoMinutos(15);
-        evento.setAcompanhantesPadrao(1);
+        evento.setAcompanhantesPadrao(5);
         evento.setStatus(status);
         evento.setOrganizador(organizador);
         return evento;
