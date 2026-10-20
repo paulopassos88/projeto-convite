@@ -1,5 +1,8 @@
 # 🚫 Especificação Técnica: CARD-09 - Revogação e Reemissão de Convites
 
+**Status:** Concluído  
+**Data de Conclusão:** 20/09/2026  
+
 ## 1. Visão Geral
 Implementação do fluxo de revogação de convites e suporte à reemissão de convite revogado no escopo do MVP, garantindo segurança de acesso, controle de permissões por perfil (RBAC) e propriedade (Ownership).
 

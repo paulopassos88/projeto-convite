@@ -50,15 +50,16 @@ Este documento cobre exclusivamente o **MVP (Fase 1)**. Funcionalidades de fases
 | Camada | Tecnologia | Versão |
 |:---|:---|:---|
 | **Linguagem** | Java | 25 |
-| **Framework** | Spring Boot | 4.1.x |
-| **Build** | Gradle | — |
-| **Banco de dados** | PostgreSQL | 17+ |
+| **Framework** | Spring Boot | 4.1.0 |
+| **Build** | Gradle (Groovy DSL) | — |
+| **Banco de dados** | PostgreSQL | 16 |
 | **Migrações** | Flyway | — |
-| **ORM** | Spring Data JPA (Hibernate 6) | — |
+| **ORM** | Spring Data JPA (Hibernate) | — |
 | **Segurança** | Spring Security 6 + JWT (jjwt 0.11.5) | — |
 | **Hash de senhas** | BCrypt | — |
-| **Mensageria** | RabbitMQ (Spring AMQP) | — |
+| **Mensageria** | RabbitMQ 3 (Spring AMQP) | — |
 | **Mapeamento** | MapStruct 1.5.5 + Lombok | — |
+| **Documentação API** | SpringDoc OpenAPI 3 / Swagger UI | 2.8.5 |
 | **Contêiner** | Docker (multi-stage, Eclipse Temurin 25) | — |
 | **Observabilidade** | Spring Boot Actuator (preparado para Prometheus/Grafana) | — |
 
@@ -100,8 +101,11 @@ graph LR
 br.com.passos.api_convite/
 ├── ApiConviteApplication.java
 ├── infra/                          # Cross-cutting concerns
+│   ├── amqp/                       # RabbitMQConfig (Exchange, Queue, Binding, Converter)
+│   ├── doc/                        # OpenApiConfig (Swagger UI + Bearer Auth)
 │   ├── exception/                  # @RestControllerAdvice + ErrorResponse
-│   └── security/                   # SecurityConfig, SecurityFilter, TokenService
+│   ├── mail/                       # EmailService (formatação e disparo de convites)
+│   └── security/                   # SecurityConfig, SecurityFilter, TokenService, UsuarioLogadoService
 └── domain/                         # Package-by-feature
     ├── usuario/                    # Autenticação e cadastro
     │   ├── controller/
@@ -117,14 +121,15 @@ br.com.passos.api_convite/
     │   ├── model/
     │   ├── repository/
     │   └── service/
-    ├── convidado/                   # Gestão de convidados
+    ├── convidado/                  # Gestão de convidados
     │   ├── controller/
     │   ├── dto/
     │   ├── mapper/
     │   ├── model/
     │   ├── repository/
     │   └── service/
-    ├── convite/                    # Geração e envio de convites
+    ├── convite/                    # Geração, envio (AMQP) e revogação de convites
+    │   ├── amqp/                   # ConviteEmailProducer e ConviteEmailConsumer
     │   ├── controller/
     │   ├── dto/
     │   ├── mapper/
@@ -168,25 +173,27 @@ Controller → Service → Repository
 
 | Perfil | Descrição | Tem conta? |
 |:---|:---|:---:|
-| **ADMIN** | Administrador do sistema. Cadastra organizadores e controladores. | Sim |
-| **ORGANIZADOR** | Cria eventos, gerencia convidados, envia convites, visualiza dashboard, autoriza exceções. | Sim |
+| **ADMIN** | Administrador do sistema. Cadastra organizadores e controladores e possui visão/acesso global. | Sim |
+| **ORGANIZADOR** | Cria eventos, gerencia convidados, envia convites, visualiza dashboard, autoriza exceções (restrito aos próprios eventos). | Sim |
 | **CONTROLADOR** | Valida códigos na portaria, registra entradas, solicita autorização manual. | Sim |
 | **Convidado** | Recebe convite por e-mail e apresenta código na portaria. | **Não** |
 
 ### 4.2 Matriz de Permissões (MVP)
 
-| Recurso | ADMIN | ORGANIZADOR | CONTROLADOR |
+| Recurso | ADMIN | ORGANIZADOR (Dono) | CONTROLADOR |
 |:---|:---:|:---:|:---:|
 | Cadastrar usuários | ✅ | ❌ | ❌ |
-| Criar/editar eventos | ❌ | ✅ | ❌ |
-| Cancelar/encerrar eventos | ❌ | ✅ | ❌ |
-| CRUD de convidados | ❌ | ✅ | ❌ |
-| Gerar/reenviar/revogar convites | ❌ | ✅ | ❌ |
-| Visualizar dashboard | ❌ | ✅ | ❌ |
-| Validar código na portaria | ❌ | ✅ | ✅ |
-| Registrar check-in | ❌ | ✅ | ✅ |
-| Conceder autorização manual | ❌ | ✅ | ❌ |
+| Criar/editar eventos | ✅ | ✅ | ❌ |
+| Cancelar/encerrar eventos | ✅ | ✅ | ❌ |
+| CRUD de convidados | ✅ | ✅ | ❌ |
+| Gerar/reenviar/revogar convites | ✅ | ✅ | ❌ |
+| Visualizar dashboard | ✅ | ✅ | ❌ |
+| Validar código na portaria | ✅ | ✅ | ✅ |
+| Registrar check-in | ✅ | ✅ | ✅ |
+| Conceder autorização manual | ✅ | ✅ | ❌ |
 | Solicitar autorização manual | ❌ | ❌ | ✅ |
+
+> **Nota de Ownership:** Usuários `ORGANIZADOR` só podem visualizar e operar sobre eventos (e respectivos convidados/convites) criados por eles mesmos. Usuários `ADMIN` possuem permissão irrestrita sobre qualquer evento.
 
 ### 4.3 Implementação RBAC
 
@@ -201,69 +208,68 @@ Controller → Service → Repository
 
 ### Épico 1: Fundação, Autenticação e Modelagem
 
-| Card | Descrição | Status |
-|:---|:---|:---:|
-| CARD-01 | Modelagem de dados relacional (6 entidades, Flyway V1–V6) | ✅ |
-| CARD-02 | Sistema de autenticação JWT + RBAC | ✅ |
+| Card | Descrição | Documentação | Status |
+|:---|:---|:---|:---:|
+| CARD-01 | Modelagem de dados relacional (6 entidades, Flyway V1–V6) | [01-card-01-modelagem-dados.md](./spec/01-card-01-modelagem-dados.md) | ✅ |
+| CARD-02 | Sistema de autenticação JWT + RBAC | [02-card-02-autenticacao.md](./spec/02-card-02-autenticacao.md) | ✅ |
 
 ---
 
 ### Épico 2: Gestão de Eventos
 
-| Card | Descrição | Requisitos |
-|:---|:---|:---|
-| CARD-03 | CRUD de Eventos | RF-001, RF-002, RF-004 a RF-010 |
-| CARD-04 | Cancelamento e encerramento de eventos | RF-003, RN-014 |
+| Card | Descrição | Requisitos | Documentação | Status |
+|:---|:---|:---|:---|:---:|
+| CARD-03 | CRUD de Eventos | RF-001, RF-002, RF-004 a RF-010 | [03-epico-02-gestao-eventos.md](./spec/03-epico-02-gestao-eventos.md) | ✅ |
+| CARD-04 | Cancelamento e encerramento de eventos | RF-003, RN-014 | [03-epico-02-gestao-eventos.md](./spec/03-epico-02-gestao-eventos.md) | ✅ |
 
 **Regras importantes:**
 - Evento é criado diretamente com status `ATIVO` no MVP (sem etapa de rascunho).
-- Organizador pode cancelar (`ATIVO` → `CANCELADO`) ou encerrar (`ATIVO` → `ENCERRADO`).
-- Evento encerrado/cancelado fica em modo somente leitura — sem novos check-ins.
-- Apenas o organizador dono do evento pode editá-lo/cancelá-lo.
+- Organizador pode cancelar (`DELETE /api/v1/eventos/{id}` → `CANCELADO`) ou atualizar o status via `PUT`.
+- Evento encerrado/cancelado fica em modo somente leitura — sem novos cadastros, convites ou check-ins.
+- Apenas o organizador dono do evento (ou `ADMIN`) pode editá-lo/cancelá-lo.
 
 ---
 
 ### Épico 3: Gestão de Convidados
 
-| Card | Descrição | Requisitos |
-|:---|:---|:---|
-| CARD-05 | CRUD de Convidados (cadastro manual individual) | RF-011, RF-012, RF-013, RF-020 |
-| CARD-06 | Validação de duplicidade de e-mail por evento + busca | RF-017, RF-019, RN-012, RN-013 |
+| Card | Descrição | Requisitos | Documentação | Status |
+|:---|:---|:---|:---|:---:|
+| CARD-05 | CRUD de Convidados (cadastro manual individual) | RF-011, RF-012, RF-013, RF-020 | [04-epico-03-gestao-convidados.md](./spec/04-epico-03-gestao-convidados.md) | ✅ |
+| CARD-06 | Validação de duplicidade de e-mail por evento + busca | RF-017, RF-019, RN-012, RN-013 | [04-epico-03-gestao-convidados.md](./spec/04-epico-03-gestao-convidados.md) | ✅ |
 
 **Regras importantes:**
-- E-mails duplicados no mesmo evento devem ser bloqueados.
+- E-mails duplicados no mesmo evento são bloqueados (`409 Conflict`).
 - E-mail deve ter formato válido (Bean Validation `@Email`).
-- Busca por nome, e-mail ou código do convite.
-- Convidado pode ter quantidade personalizada de acompanhantes (herda `acompanhantes_padrao` do evento se não especificado).
+- Busca paginada por nome ou e-mail (`ILIKE`).
+- Quantidade de `acompanhantesPermitidos` do convidado não pode ultrapassar o `acompanhantesPadrao` configurado no evento (`400 Bad Request`).
 
 ---
 
 ### Épico 4: Geração e Envio de Convites
 
-| Card | Descrição | Requisitos |
-|:---|:---|:---|
-| CARD-07 | Geração de convite com código único aleatório | RF-021 a RF-025, RN-001, RN-015 |
-| CARD-08 | Envio de e-mail assíncrono (RabbitMQ) | RF-031 a RF-042, RN-013 |
-| CARD-09 | Reenvio individual e revogação de convite | RF-026, RF-028, RF-030, RN-010, RN-011 |
+| Card | Descrição | Requisitos | Documentação | Status |
+|:---|:---|:---|:---|:---:|
+| CARD-07 | Geração de convite com código único aleatório | RF-021 a RF-025, RN-001, RN-015 | [05-epico-04-card-07-geracao-convites.md](./spec/05-epico-04-card-07-geracao-convites.md) | ✅ |
+| CARD-08 | Envio de e-mail assíncrono (RabbitMQ) | RF-031 a RF-042, RN-013 | [06-epico-04-card-08-envio-email-rabbitmq.md](./spec/06-epico-04-card-08-envio-email-rabbitmq.md) | ✅ |
+| CARD-09 | Reenvio individual, revogação e reemissão de convite | RF-026, RF-028, RF-029, RF-030, RN-010, RN-011 | [07-epico-04-card-09-revogacao-reemissao.md](./spec/07-epico-04-card-09-revogacao-reemissao.md) | ✅ |
 
 **Regras importantes:**
-- Código gerado com UUID + hash (único, não sequencial, não previsível).
+- Código alfanumérico de 8 caracteres gerado via `SecureRandom` (alfabeto sem caracteres ambíguos `0, O, 1, I, l`, ~62 trilhões de combinações) com validação de colisão no banco.
 - No MVP, o "QR Code" é representado pelo código alfanumérico enviado no e-mail.
-- E-mail em template HTML contendo: nome do convidado, nome do evento, data/hora, local, código de acesso.
-- Envio via RabbitMQ (publish na API → consume no worker de e-mail).
+- Envio assíncrono via RabbitMQ (publish na API em `convite.exchange` → consume no `ConviteEmailConsumer` na fila `convite.email.enviar.queue`).
 - Status de envio rastreado: `NAO_ENVIADO`, `ENVIADO`, `FALHA`.
-- Revogação invalida o código; reemissão gera novo código mantendo vínculo com o convidado.
+- Revogação invalida o código (`REVOGADO`); reemissão no endpoint de geração cria novo código único para convite revogado, mantendo o vínculo com o convidado e restaurando o status para `PENDENTE`.
 
 ---
 
 ### Épico 5: Controle de Acesso (Portaria)
 
-| Card | Descrição | Requisitos |
-|:---|:---|:---|
-| CARD-10 | Endpoint de validação de código | RF-045 a RF-049, RF-053, RN-007 |
-| CARD-11 | Regras de janela de acesso + tolerância | RF-048, RN-003, RN-004, RN-005 |
-| CARD-12 | Registro de check-in + bloqueio de reutilização | RF-051, RF-052, RF-055, RN-002, RNF-019 |
-| CARD-13 | Autorização manual pelo organizador | RF-054, RN-009, RNF-014 |
+| Card | Descrição | Requisitos | Status |
+|:---|:---|:---|:---:|
+| CARD-10 | Endpoint de validação de código | RF-045 a RF-049, RF-053, RN-007 | ⏳ Pendente |
+| CARD-11 | Regras de janela de acesso + tolerância | RF-048, RN-003, RN-004, RN-005 | ⏳ Pendente |
+| CARD-12 | Registro de check-in + bloqueio de reutilização | RF-051, RF-052, RF-055, RN-002, RNF-019 | ⏳ Pendente |
+| CARD-13 | Autorização manual pelo organizador | RF-054, RN-009, RNF-014 | ⏳ Pendente |
 
 **Regras importantes:**
 - Cadeia de verificação (RN-007): código existe? → evento correto? → não revogado? → não utilizado? → dentro da janela? → acompanhantes OK? → liberar/negar.
@@ -276,9 +282,9 @@ Controller → Service → Repository
 
 ### Épico 6: Dashboard e Visibilidade
 
-| Card | Descrição | Requisitos |
-|:---|:---|:---|
-| CARD-14 | Endpoints de métricas, totais e últimos check-ins | RF-057 a RF-062 |
+| Card | Descrição | Requisitos | Status |
+|:---|:---|:---|:---:|
+| CARD-14 | Endpoints de métricas, totais e últimos check-ins | RF-057 a RF-062 | ⏳ Pendente |
 
 **Escopo do dashboard no MVP:**
 - Total de convidados cadastrados
@@ -413,77 +419,80 @@ erDiagram
 
 ## 7. Contratos de API (Alto Nível)
 
-Os contratos detalhados (request/response JSON) serão especificados conforme cada épico for implementado. Abaixo, a visão geral dos endpoints planejados.
+Todas as rotas da API utilizam o prefixo base `/api/v1`. Abaixo, a visão consolidada dos endpoints implementados e planejados.
 
 ### 7.1 Autenticação
 
 | Método | Endpoint | Descrição | Acesso |
 |:---|:---|:---|:---|
-| `POST` | `/auth/login` | Autenticar e obter token JWT | Público |
+| `POST` | `/api/v1/auth/login` | Autenticar e obter token JWT | Público |
 
 ### 7.2 Usuários
 
 | Método | Endpoint | Descrição | Acesso |
 |:---|:---|:---|:---|
-| `POST` | `/usuarios` | Cadastrar novo usuário | ADMIN |
+| `POST` | `/api/v1/usuarios` | Cadastrar novo usuário | `ADMIN` |
 
 ### 7.3 Eventos
 
 | Método | Endpoint | Descrição | Acesso |
 |:---|:---|:---|:---|
-| `POST` | `/eventos` | Criar evento | ORGANIZADOR |
-| `GET` | `/eventos` | Listar eventos do organizador | ORGANIZADOR |
-| `GET` | `/eventos/{id}` | Detalhar evento | ORGANIZADOR, CONTROLADOR |
-| `PUT` | `/eventos/{id}` | Editar evento | ORGANIZADOR (dono) |
-| `PATCH` | `/eventos/{id}/cancelar` | Cancelar evento | ORGANIZADOR (dono) |
-| `PATCH` | `/eventos/{id}/encerrar` | Encerrar evento | ORGANIZADOR (dono) |
+| `POST` | `/api/v1/eventos` | Criar evento | `ADMIN`, `ORGANIZADOR` |
+| `GET` | `/api/v1/eventos` | Listar eventos paginados | `ADMIN`, `ORGANIZADOR` (dono) |
+| `GET` | `/api/v1/eventos/{id}` | Detalhar evento por ID | `ADMIN`, `ORGANIZADOR` (dono) |
+| `PUT` | `/api/v1/eventos/{id}` | Editar evento (dados e status) | `ADMIN`, `ORGANIZADOR` (dono) |
+| `DELETE` | `/api/v1/eventos/{id}` | Cancelar evento (Soft Delete → `CANCELADO`) | `ADMIN`, `ORGANIZADOR` (dono) |
 
 ### 7.4 Convidados
 
 | Método | Endpoint | Descrição | Acesso |
 |:---|:---|:---|:---|
-| `POST` | `/eventos/{eventoId}/convidados` | Cadastrar convidado | ORGANIZADOR |
-| `GET` | `/eventos/{eventoId}/convidados` | Listar convidados do evento | ORGANIZADOR |
-| `GET` | `/eventos/{eventoId}/convidados/{id}` | Detalhar convidado | ORGANIZADOR |
-| `PUT` | `/eventos/{eventoId}/convidados/{id}` | Editar convidado | ORGANIZADOR |
-| `DELETE` | `/eventos/{eventoId}/convidados/{id}` | Remover convidado | ORGANIZADOR |
+| `POST` | `/api/v1/eventos/{eventoId}/convidados` | Cadastrar convidado no evento | `ADMIN`, `ORGANIZADOR` (dono) |
+| `GET` | `/api/v1/eventos/{eventoId}/convidados` | Listar convidados do evento (paginado, filtro `busca`) | `ADMIN`, `ORGANIZADOR` (dono) |
+| `GET` | `/api/v1/eventos/{eventoId}/convidados/{id}` | Detalhar convidado por ID | `ADMIN`, `ORGANIZADOR` (dono) |
+| `PUT` | `/api/v1/eventos/{eventoId}/convidados/{id}` | Editar convidado | `ADMIN`, `ORGANIZADOR` (dono) |
+| `DELETE` | `/api/v1/eventos/{eventoId}/convidados/{id}` | Remover convidado do evento | `ADMIN`, `ORGANIZADOR` (dono) |
 
 ### 7.5 Convites
 
 | Método | Endpoint | Descrição | Acesso |
 |:---|:---|:---|:---|
-| `POST` | `/eventos/{eventoId}/convidados/{convidadoId}/convite` | Gerar convite | ORGANIZADOR |
-| `POST` | `/convites/{id}/enviar` | Enviar/reenviar convite por e-mail | ORGANIZADOR |
-| `PATCH` | `/convites/{id}/revogar` | Revogar convite | ORGANIZADOR |
-| `GET` | `/eventos/{eventoId}/convites` | Listar convites do evento | ORGANIZADOR |
+| `POST` | `/api/v1/eventos/{eventoId}/convidados/{convidadoId}/convite` | Gerar convite ou reemitir convite revogado | `ADMIN`, `ORGANIZADOR` (dono) |
+| `GET` | `/api/v1/eventos/{eventoId}/convites` | Listar convites do evento (paginado, filtro `status`) | `ADMIN`, `ORGANIZADOR` (dono) |
+| `GET` | `/api/v1/eventos/{eventoId}/convites/{id}` | Buscar convite por ID | `ADMIN`, `ORGANIZADOR` (dono) |
+| `GET` | `/api/v1/eventos/{eventoId}/convidados/{convidadoId}/convite` | Buscar convite pelo ID do convidado | `ADMIN`, `ORGANIZADOR` (dono) |
+| `POST` | `/api/v1/convites/{id}/enviar` | Enfileirar envio/reenvio de convite por e-mail (RabbitMQ) | `ADMIN`, `ORGANIZADOR` (dono) |
+| `PATCH` | `/api/v1/convites/{id}/revogar` | Revogar convite ativo | `ADMIN`, `ORGANIZADOR` (dono) |
 
-### 7.6 Portaria (Validação + Check-in)
-
-| Método | Endpoint | Descrição | Acesso |
-|:---|:---|:---|:---|
-| `POST` | `/portaria/validar` | Validar código de acesso | ORGANIZADOR, CONTROLADOR |
-| `POST` | `/portaria/autorizacao-manual` | Autorizar entrada manualmente | ORGANIZADOR |
-
-### 7.7 Dashboard
+### 7.6 Portaria (Validação + Check-in) *(Planejado — Épico 5)*
 
 | Método | Endpoint | Descrição | Acesso |
 |:---|:---|:---|:---|
-| `GET` | `/eventos/{eventoId}/dashboard` | Métricas e totais do evento | ORGANIZADOR |
-| `GET` | `/eventos/{eventoId}/dashboard/checkins` | Últimos check-ins realizados | ORGANIZADOR |
+| `POST` | `/api/v1/portaria/validar` | Validar código de acesso | `ADMIN`, `ORGANIZADOR`, `CONTROLADOR` |
+| `POST` | `/api/v1/portaria/autorizacao-manual` | Autorizar entrada manualmente | `ADMIN`, `ORGANIZADOR` |
+
+### 7.7 Dashboard *(Planejado — Épico 6)*
+
+| Método | Endpoint | Descrição | Acesso |
+|:---|:---|:---|:---|
+| `GET` | `/api/v1/eventos/{eventoId}/dashboard` | Métricas e totais do evento | `ADMIN`, `ORGANIZADOR` (dono) |
+| `GET` | `/api/v1/eventos/{eventoId}/dashboard/checkins` | Últimos check-ins realizados | `ADMIN`, `ORGANIZADOR` (dono) |
 
 ### 7.8 Resposta Padrão de Erro
 
-Todas as APIs utilizam o formato padronizado do `GlobalExceptionHandler`:
+Todas as APIs utilizam o formato padronizado do `GlobalExceptionHandler` (`ErrorResponse`):
 
 ```json
 {
+  "timestamp": "2026-08-13T14:30:00Z",
   "status": 400,
-  "erro": "Bad Request",
-  "mensagem": "Erro de validação nos campos informados.",
+  "error": "Bad Request",
+  "title": "Erro de Validação",
+  "detail": "Um ou mais campos estão inválidos. Verifique e tente novamente.",
+  "path": "/api/v1/usuarios",
   "campos": [
-    { "campo": "email", "mensagem": "Formato de e-mail inválido." }
-  ],
-  "timestamp": "2026-08-13T14:30:00"
+    { "campo": "email", "mensagem": "Formato de e-mail inválido" }
+  ]
 }
 ```
 
@@ -492,7 +501,7 @@ Todas as APIs utilizam o formato padronizado do `GlobalExceptionHandler`:
 ## 8. Regras de Negócio do MVP
 
 ### RN-001 — Código único por convite
-Cada convite possui um código único, não repetido, não sequencial e não previsível. Gerado com UUID + hash criptográfico. Unicidade garantida pela constraint `UNIQUE` na coluna `codigo`.
+Cada convite possui um código único, não repetido, não sequencial e não previsível de 8 caracteres alfanuméricos, gerado com `SecureRandom` (`GeradorCodigoConviteService`). Unicidade garantida por validação de colisão e pela constraint `UNIQUE` na coluna `codigo`.
 
 **Implementa:** CARD-07
 
@@ -577,7 +586,7 @@ Após encerramento: novos check-ins bloqueados, dashboard continua disponível p
 **Implementa:** CARD-04
 
 ### RN-015 — Segurança do código
-Código de acesso: único, não sequencial, não previsível, associado a hash/token válido, validado no servidor.
+Código de acesso: único, não sequencial, não previsível, gerado com `SecureRandom` e validado no servidor.
 
 **Implementa:** CARD-07
 
@@ -671,21 +680,22 @@ flowchart TD
 |:---|:---|:---|
 | RNF-010 | Senhas com hash seguro | BCrypt via `BCryptPasswordEncoder` |
 | RNF-011 | Tokens expiram por inatividade | JWT com expiração de 2 horas |
-| RNF-012 | Códigos seguros, validação server-side | UUID + hash, validação no backend |
+| RNF-012 | Códigos seguros, validação server-side | `SecureRandom` (8 chars), validação no backend |
 | RNF-013 | Impedir acesso não autorizado à portaria | JWT obrigatório + `@PreAuthorize` por perfil |
 | RNF-014 | Log de autorização manual | Tabela `autorizacao_manual` com motivo obrigatório |
 | RNF-015 | Log de tentativas de validação | Toda tentativa gera registro em `checkin` |
 | RNF-016 | APIs autenticadas e autorizadas | `SecurityFilterChain` + `@EnableMethodSecurity` |
 | RNF-017 | Proteção de dados pessoais | Dados restritos por evento, sem exposição cruzada |
 
-### 11.2 Geração de Código Único
+### 11.2 Geração de Código Único (`GeradorCodigoConviteService`)
 
 ```
-código = Base64URL( SHA-256( UUID.randomUUID() + evento_id + convidado_id + timestamp + secret ) )
+Alfabeto: "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789" (57 chars, sem 0/O/1/I/l)
+Tamanho:  8 caracteres gerados com java.security.SecureRandom (~62 trilhões de combinações)
 ```
 
-- Não sequencial, não previsível
-- Constraint `UNIQUE` na coluna `codigo`
+- Não sequencial, não previsível e legível para digitação manual na portaria
+- Checagem de colisão com retry + constraint `UNIQUE` na coluna `codigo`
 - Validação exclusivamente server-side
 
 ### 11.3 Proteção contra Concorrência (Check-in)
@@ -706,8 +716,8 @@ O registro de check-in deve ser protegido contra condições de corrida (dois co
 | Decisão | Justificativa |
 |:---|:---|
 | Código alfanumérico em vez de QR Code real | Simplifica o MVP; QR Code é apenas representação visual do código |
-| Envio de e-mail assíncrono via RabbitMQ | Desacopla geração do convite do envio; dependência já presente no `build.gradle.kts` |
-| E-mail com template HTML | Inclui nome do convidado, evento, data/hora, local e código de acesso |
+| Envio de e-mail assíncrono via RabbitMQ | Desacopla geração do convite do envio; dependência presente no `build.gradle` |
+| E-mail formatado pelo `EmailService` | Inclui nome do convidado, evento, data/hora, local, link Maps e código de acesso |
 | Dashboard com polling (GET) | Suficiente para MVP; WebSocket planejado para Fase 2 |
 | Sem importação CSV/Excel | Cadastro manual individual cobre o MVP |
 | Validação por código digitado (sem câmera) | Funciona em qualquer navegador; leitura de câmera planejada para Fase 2 |

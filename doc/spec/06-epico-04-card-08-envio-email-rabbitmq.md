@@ -1,5 +1,8 @@
 # 📬 Especificação Técnica: CARD-08 - Envio de E-mail Assíncrono (RabbitMQ)
 
+**Status:** Concluído  
+**Data de Conclusão:** 16/09/2026  
+
 ## 1. Visão Geral
 Implementação do fluxo assíncrono de envio de e-mails para os convidados de um evento utilizando RabbitMQ como Message Broker (mensageria AMQP). Esse padrão desacopla a requisição HTTP da API do processo de montagem e disparo de e-mails, garantindo alta disponibilidade, tolerância a falhas e resposta imediata ao usuário.
 
@@ -24,20 +27,19 @@ Implementação do fluxo assíncrono de envio de e-mails para os convidados de u
 
 ---
 
-## 3. Arquitetura de Mensageria (RabbitMQ)
+## 3. Arquitetura de Mensageria Implementada (RabbitMQ)
 
-### 3.1 Topologia AMQP Proposta
-- **Exchange:** `convite.exchange` (Tipo: `Direct` ou `Topic`)
+### 3.1 Topologia AMQP (`RabbitMQConfig`)
+- **Exchange:** `convite.exchange` (`DirectExchange`, durable)
 - **Routing Key:** `convite.email.enviar`
-- **Queue Principal:** `convite.email.enviar.queue` (Durable)
-- **Dead Letter Exchange (DLX):** `convite.dlx` (para mensagens que excederem tentativas em caso de erro)
-- **Dead Letter Queue (DLQ):** `convite.email.enviar.dlq`
+- **Queue Principal:** `convite.email.enviar.queue` (durable)
+- **Serialização:** `JacksonJsonMessageConverter` integrado ao `RabbitTemplate`
 
 ### 3.2 Payload da Mensagem (`ConviteEmailPayloadDTO`)
 ```json
 {
-  "conviteId": "UUID",
-  "codigo": "7kM9xP2a",
+  "conviteId": "880e8400-e29b-41d4-a716-446655440003",
+  "codigo": "7KM9XP2A",
   "convidadoNome": "Carlos Silva",
   "convidadoEmail": "carlos@teste.com",
   "eventoNome": "Casamento Real",
@@ -51,18 +53,40 @@ Implementação do fluxo assíncrono de envio de e-mails para os convidados de u
 ```
 
 ### 3.3 Ciclo de Vida do Envio
-1. O Organizador aciona o endpoint `POST /convites/{id}/enviar` (ou envio em lote).
-2. A API valida o convite, monta o payload e publica a mensagem na exchange do RabbitMQ.
-3. O status do convite é atualizado (ou mantido em processamento) e a API responde imediatamente com `202 Accepted` ou `200 OK`.
-4. O Worker/Consumer consome a mensagem da fila:
-   - Se sucesso: Dispara o e-mail via serviço de SMTP (ou mock no MVP), atualiza `status_envio = ENVIADO` e `enviado_em = now()`.
-   - Se erro transitório/falha: Tenta retentativas (retry) ou joga na DLQ e registra `status_envio = FALHA`.
+1. O Organizador (dono do evento) ou `ADMIN` aciona o endpoint `POST /api/v1/convites/{id}/enviar`.
+2. O `ConviteService` valida a existência do convite, a propriedade do evento, se o evento está `ATIVO` e se o convite não está `REVOGADO`.
+3. O `ConviteEmailProducer` publica o `ConviteEmailPayloadDTO` na exchange `convite.exchange` e a API responde imediatamente com `200 OK` contendo `MensagemSucessoDTO` (`conviteId`, `mensagem`, `enfileiradoEm`).
+4. O `ConviteEmailConsumer` (`@RabbitListener`) consome a mensagem da fila `convite.email.enviar.queue`:
+   - **Sucesso:** Dispara o e-mail formatado via `EmailService` e chama `conviteService.registrarSucessoEnvio(conviteId)`, atualizando `status_envio = ENVIADO` e `enviado_em = LocalDateTime.now()`.
+   - **Falha:** Captura a exceção, registra log de erro e chama `conviteService.registrarFalhaEnvio(conviteId)`, atualizando `status_envio = FALHA`.
 
 ---
 
-## 4. Endpoints Envolvidos
+## 4. Componentes Criados
+
+1. **`RabbitMQConfig` (`infra/amqp`):** Configuração dos beans de `DirectExchange`, `Queue`, `Binding`, `JacksonJsonMessageConverter` e `RabbitTemplate`.
+2. **`EmailService` (`infra/mail`):** Serviço responsável pela formatação e disparo do e-mail contendo todos os dados do evento, links de localização, código de acesso e instruções da portaria.
+3. **`ConviteEmailPayloadDTO` e `MensagemSucessoDTO` (`domain/convite/dto`):** Records para transporte da mensagem AMQP e resposta do enfileiramento HTTP.
+4. **`ConviteEmailProducer` (`domain/convite/amqp`):** Publicador AMQP das solicitações de envio.
+5. **`ConviteEmailConsumer` (`domain/convite/amqp`):** Worker consumidor da fila que orquestra o disparo e atualiza o status de envio no banco.
+
+---
+
+## 5. Endpoints Envolvidos
 
 | Método | Rota | Descrição | Permissão | Status Retorno |
 |:---|:---|:---|:---|:---|
-| `POST` | `/api/v1/convites/{id}/enviar` | Envia convite por e-mail de forma assíncrona | `ORGANIZADOR`, `ADMIN` | `200 OK` / `202 Accepted` |
-| `GET` | `/api/v1/eventos/{eventoId}/convites` | Lista convites exibindo `statusEnvio` e `enviadoEm` | `ORGANIZADOR`, `ADMIN` | `200 OK` |
+| `POST` | `/api/v1/convites/{id}/enviar` | Enfileira o envio de convite por e-mail no RabbitMQ | `ADMIN`, `ORGANIZADOR` | `200 OK` |
+| `GET` | `/api/v1/eventos/{eventoId}/convites` | Lista convites exibindo `statusEnvio` e `enviadoEm` | `ADMIN`, `ORGANIZADOR` | `200 OK` |
+
+---
+
+## 6. Testes Automatizados
+
+- **`ConviteControllerTest` (Cenários 14 a 17):**
+  - **Cenário 14:** Enfileiramento de envio com sucesso (`200 OK`) e verificação da publicação no `ConviteEmailProducer`.
+  - **Cenário 15:** Retorno `404 Not Found` ao tentar enviar convite inexistente.
+  - **Cenário 16:** Bloqueio (`403 Forbidden`) quando outro organizador tenta enviar convite de evento alheio.
+  - **Cenário 17:** Bloqueio (`400 Bad Request`) ao tentar enviar convite com status `REVOGADO`.
+- **`ConviteEmailConsumerTest`:** Valida o processamento da mensagem pelo consumidor, atualização para `ENVIADO` com `enviadoEm` preenchido em caso de sucesso, e marcação como `FALHA` quando ocorre erro no envio.
+
